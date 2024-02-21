@@ -11,9 +11,9 @@ import time
 
 from pymavlink import mavutil
 
-from common import AutoTest
-from common import NotAchievedException
-from common import AutoTestTimeoutException
+import vehicle_test_suite
+from vehicle_test_suite import NotAchievedException
+from vehicle_test_suite import AutoTestTimeoutException
 
 if sys.version_info[0] < 3:
     ConnectionResetError = AutoTestTimeoutException
@@ -33,7 +33,7 @@ class Joystick():
     Lateral = 6
 
 
-class AutoTestSub(AutoTest):
+class AutoTestSub(vehicle_test_suite.TestSuite):
     @staticmethod
     def get_not_armable_mode_list():
         return []
@@ -165,6 +165,44 @@ class AutoTestSub(AutoTest):
         self.set_rc(Joystick.Throttle, 1500)
         self.watch_altitude_maintained()
         self.disarm_vehicle()
+
+    def RngfndQuality(self):
+        """Check lua Range Finder quality information flow"""
+        self.context_push()
+        self.context_collect('STATUSTEXT')
+
+        ex = None
+        try:
+            self.set_parameters({
+                "SCR_ENABLE": 1,
+                "RNGFND1_TYPE": 36,
+                "RNGFND1_ORIENT": 25,
+                "RNGFND1_MIN_CM": 10,
+                "RNGFND1_MAX_CM": 5000,
+            })
+
+            self.install_example_script_context("rangefinder_quality_test.lua")
+
+            # These string must match those sent by the lua test script.
+            complete_str = "#complete#"
+            failure_str = "!!failure!!"
+
+            self.reboot_sitl()
+
+            self.wait_statustext(complete_str, timeout=20, check_context=True)
+            found_failure = self.statustext_in_collections(failure_str)
+
+            if found_failure is not None:
+                raise NotAchievedException("RngfndQuality test failed: " + found_failure.text)
+
+        except Exception as e:
+            self.print_exception_caught(e)
+            ex = e
+
+        self.context_pop()
+
+        if ex:
+            raise ex
 
     def ModeChanges(self, delta=0.2):
         """Check if alternating between ALTHOLD, STABILIZE and POSHOLD affects altitude"""
@@ -317,12 +355,14 @@ class AutoTestSub(AutoTest):
     def GripperMission(self):
         '''Test gripper mission items'''
         self.load_mission("sub-gripper-mission.txt")
-        self.change_mode('GUIDED')
         self.wait_ready_to_arm()
         self.arm_vehicle()
         self.change_mode('AUTO')
+        self.wait_waypoint(1, 2, max_dist=5)
         self.wait_statustext("Gripper Grabbed", timeout=60)
+        self.wait_waypoint(1, 4, max_dist=5)
         self.wait_statustext("Gripper Released", timeout=60)
+        self.wait_waypoint(1, 6, max_dist=5)
         self.disarm_vehicle()
 
     def SET_POSITION_TARGET_GLOBAL_INT(self):
@@ -422,7 +462,6 @@ class AutoTestSub(AutoTest):
         ret = super(AutoTestSub, self).disabled_tests()
         ret.update({
             "ConfigErrorLoop": "Sub does not instantiate AP_Stats.  Also see https://github.com/ArduPilot/ardupilot/issues/10247",  # noqa
-            "MAV_CMD_DO_CHANGE_SPEED": "Doesn't work",
         })
         return ret
 
@@ -458,21 +497,21 @@ class AutoTestSub(AutoTest):
     def MAV_CMD_DO_CHANGE_SPEED(self):
         '''ensure vehicle changes speeds when DO_CHANGE_SPEED received'''
         items = [
-            (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 2000, 0, 0),
+            (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 0, -3),  # Dive so we have constrat drag
+            (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 2000, 0, -1),
             (mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH, 0, 0, 0),
         ]
-        items = []
-        for i in range(0, 2000, 10):
-            items.append((mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, i, 0, 0))
         self.upload_simple_relhome_mission(items)
-
         self.wait_ready_to_arm()
         self.arm_vehicle()
         self.run_cmd(mavutil.mavlink.MAV_CMD_MISSION_START)
+        self.progress("SENT MISSION START")
+        self.wait_mode('AUTO')
+        self.wait_current_waypoint(2)  # wait after we finish diving to 3m
         for run_cmd in self.run_cmd, self.run_cmd_int:
-            for speed in [1, 2, 3, 1]:
+            for speed in [1, 1.5, 0.5]:
                 run_cmd(mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED, p2=speed)
-                self.wait_groundspeed(speed-0.02, speed+0.02, minimum_duration=2)
+                self.wait_groundspeed(speed-0.2, speed+0.2, minimum_duration=2, timeout=60)
         self.disarm_vehicle()
 
     def _MAV_CMD_CONDITION_YAW(self, run_cmd):
@@ -523,6 +562,7 @@ class AutoTestSub(AutoTest):
         ret.extend([
             self.DiveManual,
             self.AltitudeHold,
+            self.RngfndQuality,
             self.PositionHold,
             self.ModeChanges,
             self.DiveMission,
@@ -531,6 +571,7 @@ class AutoTestSub(AutoTest):
             self.MotorThrustHoverParameterIgnore,
             self.SET_POSITION_TARGET_GLOBAL_INT,
             self.TestLogDownloadMAVProxy,
+            self.TestLogDownloadMAVProxyNetwork,
             self.MAV_CMD_NAV_LOITER_UNLIM,
             self.MAV_CMD_NAV_LAND,
             self.MAV_CMD_MISSION_START,

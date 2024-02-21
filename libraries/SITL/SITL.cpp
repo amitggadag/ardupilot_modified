@@ -448,6 +448,12 @@ const AP_Param::GroupInfo SIM::var_info3[] = {
     AP_SUBGROUPINFO(airspeed[1], "ARSPD2_", 51, SIM, AirspeedParm),
 #endif
 
+    // @Param: ADSB_TYPES
+    // @DisplayName: Simulated ADSB Type mask
+    // @Description: specifies which simulated ADSB types are active
+    // @User: Advanced
+    // @Bitmask: 0:MAVLink,3:SageTechMXS
+    AP_GROUPINFO("ADSB_TYPES",    52, SIM,  adsb_types, 1),
 
 #ifdef SFML_JOYSTICK
     AP_SUBGROUPEXTENSION("",      63, SIM,  var_sfml_joystick),
@@ -493,7 +499,7 @@ const AP_Param::GroupInfo SIM::var_gps[] = {
     // @Param: GPS_TYPE
     // @DisplayName: GPS 1 type
     // @Description: Sets the type of simulation used for GPS 1
-    // @Values: 0:None, 1:UBlox, 5:NMEA, 6:SBP, 7:File, 8:Nova, 9:SBP, 10:GSOF, 19:MSP
+    // @Values: 0:None, 1:UBlox, 5:NMEA, 6:SBP, 7:File, 8:Nova, 9:SBP2, 11:Trimble, 19:MSP
     // @User: Advanced
     AP_GROUPINFO("GPS_TYPE",       3, SIM,  gps_type[0],  GPS::Type::UBLOX),
     // @Param: GPS_BYTELOSS
@@ -563,6 +569,12 @@ const AP_Param::GroupInfo SIM::var_gps[] = {
     // @Vector3Parameter: 1
     // @User: Advanced
     AP_GROUPINFO("GPS_VERR",      15, SIM,  gps_vel_err[0], 0),
+    // @Param: GPS_JAM
+    // @DisplayName: GPS jamming enable
+    // @Description: Enable simulated GPS jamming
+    // @User: Advanced
+    // @Values: 0:Disabled, 1:Enabled
+    AP_GROUPINFO("GPS_JAM",       16, SIM,  gps_jam[0], 0),
     // @Param: GPS2_DISABLE
     // @DisplayName: GPS 2 disable
     // @Description: Disables GPS 2
@@ -666,6 +678,13 @@ const AP_Param::GroupInfo SIM::var_gps[] = {
     // @Description: Log number for GPS:update_file()
     AP_GROUPINFO("GPS_LOG_NUM",   48, SIM,  gps_log_num, 0),
 
+    // @Param: GPS2_JAM
+    // @DisplayName: GPS jamming enable
+    // @Description: Enable simulated GPS jamming
+    // @User: Advanced
+    // @Values: 0:Disabled, 1:Enabled
+    AP_GROUPINFO("GPS2_JAM",      49, SIM,  gps_jam[1], 0),
+
     AP_GROUPEND
 };
 #endif  // HAL_SIM_GPS_ENABLED
@@ -738,6 +757,14 @@ const AP_Param::GroupInfo SIM::var_mag[] = {
     AP_GROUPINFO("MAG3_SCALING",  30, SIM,  mag_scaling[2], 1),
     AP_GROUPINFO("MAG3_ORIENT",   36, SIM,  mag_orient[2], 0),
 #endif
+
+    // @Param: MAG_SAVE_IDS
+    // @DisplayName: Save MAG devids on startup
+    // @Description: This forces saving of compass devids on startup so that simulated compasses start as calibrated
+    // @Values: 0:Disabled, 1:Enabled
+    // @User: Advanced
+    AP_GROUPINFO("MAG_SAVE_IDS", 37, SIM, mag_save_ids, 1),
+
     AP_GROUPEND
 };
 
@@ -1142,6 +1169,7 @@ void SIM::sim_state_send(mavlink_channel_t chan) const
             (int32_t)(state.longitude*1.0e7));
 }
 
+#if HAL_LOGGING_ENABLED
 /* report SITL state to AP_Logger */
 void SIM::Log_Write_SIMSTATE()
 {
@@ -1169,6 +1197,7 @@ void SIM::Log_Write_SIMSTATE()
     };
     AP::logger().WriteBlock(&pkt, sizeof(pkt));
 }
+#endif
 
 /*
  convert a set of roll rates from earth frame to body frame

@@ -84,7 +84,7 @@ public:
     void handle_message(mavlink_channel_t chan, const mavlink_message_t &msg);
 
     // handle MAVLink command from GCS to control the camera
-    MAV_RESULT handle_command_long(const mavlink_command_long_t &packet);
+    MAV_RESULT handle_command(const mavlink_command_int_t &packet);
 
     // send camera feedback message to GCS
     void send_feedback(mavlink_channel_t chan);
@@ -95,13 +95,21 @@ public:
     // send camera settings message to GCS
     void send_camera_settings(mavlink_channel_t chan);
 
+#if AP_CAMERA_SEND_FOV_STATUS_ENABLED
+    // send camera field of view status
+    void send_camera_fov_status(mavlink_channel_t chan);
+#endif
+
+    // send camera capture status message to GCS
+    void send_camera_capture_status(mavlink_channel_t chan);
+
     // configure camera
-    void configure(float shooting_mode, float shutter_speed, float aperture, float ISO, float exposure_type, float cmd_id, float engine_cutoff_time);
-    void configure(uint8_t instance, float shooting_mode, float shutter_speed, float aperture, float ISO, float exposure_type, float cmd_id, float engine_cutoff_time);
+    void configure(float shooting_mode, float shutter_speed, float aperture, float ISO, int32_t exposure_type, int32_t cmd_id, float engine_cutoff_time);
+    void configure(uint8_t instance, float shooting_mode, float shutter_speed, float aperture, float ISO, int32_t exposure_type, int32_t cmd_id, float engine_cutoff_time);
 
     // handle camera control
-    void control(float session, float zoom_pos, float zoom_step, float focus_lock, float shooting_cmd, float cmd_id);
-    void control(uint8_t instance, float session, float zoom_pos, float zoom_step, float focus_lock, float shooting_cmd, float cmd_id);
+    void control(float session, float zoom_pos, float zoom_step, float focus_lock, int32_t shooting_cmd, int32_t cmd_id);
+    void control(uint8_t instance, float session, float zoom_pos, float zoom_step, float focus_lock, int32_t shooting_cmd, int32_t cmd_id);
 
     // set camera trigger distance in a mission
     void set_trigger_distance(float distance_m);
@@ -173,6 +181,9 @@ public:
     // returns true on success and cam_state is filled in
     bool get_state(uint8_t instance, camera_state_t& cam_state);
 #endif
+
+    // Return true and the relay index if relay camera backend is selected, used for conversion to relay functions
+    bool get_legacy_relay_index(int8_t &index) const;
 
     // allow threads to lock against AHRS update
     HAL_Semaphore &get_semaphore() { return _rsem; }

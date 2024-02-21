@@ -2,6 +2,7 @@
 
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Winch/AP_Winch_config.h>
+#include "defines.h"
 
 #ifndef AC_MAVLINK_SOLO_BUTTON_COMMAND_HANDLING_ENABLED
 #define AC_MAVLINK_SOLO_BUTTON_COMMAND_HANDLING_ENABLED 1
@@ -38,7 +39,6 @@ protected:
     MAV_RESULT handle_command_mount(const mavlink_command_int_t &packet, const mavlink_message_t &msg) override;
 #endif
     MAV_RESULT handle_command_int_packet(const mavlink_command_int_t &packet, const mavlink_message_t &msg) override;
-    MAV_RESULT handle_command_long_packet(const mavlink_command_long_t &packet, const mavlink_message_t &msg) override;
     MAV_RESULT handle_command_int_do_reposition(const mavlink_command_int_t &packet);
     MAV_RESULT handle_command_pause_continue(const mavlink_command_int_t &packet);
 
@@ -58,6 +58,10 @@ protected:
 
     void handle_manual_control_axes(const mavlink_manual_control_t &packet, const uint32_t tnow) override;
 
+#if HAL_LOGGING_ENABLED
+    uint32_t log_radio_bit() const override { return MASK_LOG_PM; }
+#endif
+
 private:
 
     // sanity check velocity or acceleration vector components are numbers
@@ -67,7 +71,7 @@ private:
 
     MISSION_STATE mission_state(const class AP_Mission &mission) const override;
 
-    void handleMessage(const mavlink_message_t &msg) override;
+    void handle_message(const mavlink_message_t &msg) override;
     void handle_command_ack(const mavlink_message_t &msg) override;
     bool handle_guided_request(AP_Mission::Mission_Command &cmd) override;
     bool try_send_message(enum ap_message id) override;
@@ -84,7 +88,9 @@ private:
 
     void send_pid_tuning() override;
 
+#if AP_WINCH_ENABLED
     void send_winch_status() const override;
+#endif
 
     void send_wind() const;
 
@@ -109,7 +115,12 @@ private:
     MAV_RESULT handle_MAV_CMD_SOLO_BTN_PAUSE_CLICK(const mavlink_command_int_t &packet);
 #endif
 
+#if AP_MAVLINK_COMMAND_LONG_ENABLED
+    bool mav_frame_for_command_long(MAV_FRAME &frame, MAV_CMD packet_command) const override;
+#endif
+
     MAV_RESULT handle_MAV_CMD_MISSION_START(const mavlink_command_int_t &packet);
+    MAV_RESULT handle_MAV_CMD_NAV_TAKEOFF(const mavlink_command_int_t &packet);
 
 #if AP_WINCH_ENABLED
     MAV_RESULT handle_MAV_CMD_DO_WINCH(const mavlink_command_int_t &packet);

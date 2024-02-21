@@ -1,6 +1,6 @@
 #include "Sub.h"
 
-#if LOGGING_ENABLED == ENABLED
+#if HAL_LOGGING_ENABLED
 
 // Code to Write and Read packets from AP_Logger log memory
 // Code to interact with the user to dump or erase logs
@@ -275,6 +275,11 @@ const struct LogStructure Sub::log_structure[] = {
       "GUIP",  "QBffffff",    "TimeUS,Type,pX,pY,pZ,vX,vY,vZ", "s-mmmnnn", "F-000000" },
 };
 
+uint8_t Sub::get_num_log_structures() const
+{
+    return ARRAY_SIZE(log_structure);
+}
+
 void Sub::Log_Write_Vehicle_Startup_Messages()
 {
     // only 200(?) bytes are guaranteed by AP_Logger
@@ -284,23 +289,4 @@ void Sub::Log_Write_Vehicle_Startup_Messages()
 }
 
 
-void Sub::log_init()
-{
-    logger.Init(log_structure, ARRAY_SIZE(log_structure));
-}
-
-#else // LOGGING_ENABLED
-
-void Sub::Log_Write_Control_Tuning() {}
-void Sub::Log_Write_Attitude(void) {}
-void Sub::Log_Write_Data(LogDataID id, int32_t value) {}
-void Sub::Log_Write_Data(LogDataID id, uint32_t value) {}
-void Sub::Log_Write_Data(LogDataID id, int16_t value) {}
-void Sub::Log_Write_Data(LogDataID id, uint16_t value) {}
-void Sub::Log_Write_Data(LogDataID id, float value) {}
-void Sub::Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_target, const Vector3f& vel_target) {}
-void Sub::Log_Write_Vehicle_Startup_Messages() {}
-
-void Sub::log_init(void) {}
-
-#endif // LOGGING_ENABLED
+#endif // HAL_LOGGING_ENABLED

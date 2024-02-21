@@ -1,4 +1,9 @@
+#include "AP_BattMonitor_config.h"
+
+#if AP_BATTERY_ENABLED
+
 #include "AP_BattMonitor.h"
+
 #include "AP_BattMonitor_Analog.h"
 #include "AP_BattMonitor_SMBus.h"
 #include "AP_BattMonitor_SMBus_Solo.h"
@@ -20,6 +25,8 @@
 #include "AP_BattMonitor_Torqeedo.h"
 #include "AP_BattMonitor_FuelLevel_Analog.h"
 #include "AP_BattMonitor_Synthetic_Current.h"
+#include "AP_BattMonitor_AD7091R5.h"
+#include "AP_BattMonitor_Scripting.h"
 
 #include <AP_HAL/AP_HAL.h>
 
@@ -554,6 +561,16 @@ AP_BattMonitor::init()
                 drivers[instance] = new AP_BattMonitor_EFI(*this, state[instance], _params[instance]);
                 break;
 #endif // AP_BATTERY_EFI_ENABLED
+#if AP_BATTERY_AD7091R5_ENABLED
+            case Type::AD7091R5:
+                drivers[instance] = new AP_BattMonitor_AD7091R5(*this, state[instance], _params[instance]);
+                break;
+#endif// AP_BATTERY_AD7091R5_ENABLED
+#if AP_BATTERY_SCRIPTING_ENABLED
+            case Type::Scripting:
+                drivers[instance] = new AP_BattMonitor_Scripting(*this, state[instance], _params[instance]);
+                break;
+#endif // AP_BATTERY_SCRIPTING_ENABLED
             case Type::NONE:
             default:
                 break;
@@ -639,7 +656,7 @@ void AP_BattMonitor::convert_dynamic_param_groups(uint8_t instance)
     }
 }
 
-// read - For all active instances read voltage & current; log BAT, BCL, POWR
+// read - For all active instances read voltage & current; log BAT, BCL, POWR, MCU
 void AP_BattMonitor::read()
 {
 #if HAL_LOGGING_ENABLED
@@ -835,24 +852,25 @@ void AP_BattMonitor::check_failsafes(void)
 // return true if any battery is pushing too much power
 bool AP_BattMonitor::overpower_detected() const
 {
-    bool result = false;
+#if AP_BATTERY_WATT_MAX_ENABLED && APM_BUILD_TYPE(APM_BUILD_ArduPlane)
     for (uint8_t instance = 0; instance < _num_instances; instance++) {
-        result |= overpower_detected(instance);
+        if (overpower_detected(instance)) {
+            return true;
+        }
     }
-    return result;
+#endif
+    return false;
 }
 
 bool AP_BattMonitor::overpower_detected(uint8_t instance) const
 {
-#if APM_BUILD_TYPE(APM_BUILD_ArduPlane)
+#if AP_BATTERY_WATT_MAX_ENABLED && APM_BUILD_TYPE(APM_BUILD_ArduPlane)
     if (instance < _num_instances && _params[instance]._watt_max > 0) {
-        float power = state[instance].current_amps * state[instance].voltage;
+        const float power = state[instance].current_amps * state[instance].voltage;
         return state[instance].healthy && (power > _params[instance]._watt_max);
     }
-    return false;
-#else
-    return false;
 #endif
+    return false;
 }
 
 bool AP_BattMonitor::has_cell_voltages(const uint8_t instance) const
@@ -872,6 +890,23 @@ const AP_BattMonitor::cells & AP_BattMonitor::get_cell_voltages(const uint8_t in
     } else {
         return state[instance].cell_voltages;
     }
+}
+
+// get once cell voltage (for scripting)
+bool AP_BattMonitor::get_cell_voltage(uint8_t instance, uint8_t cell, float &voltage) const
+{
+    if (!has_cell_voltages(instance) ||
+        cell >= AP_BATT_MONITOR_CELLS_MAX) {
+        return false;
+    }
+    const auto &cell_voltages = get_cell_voltages(instance);
+    const uint16_t voltage_mv = cell_voltages.cells[cell];
+    if (voltage_mv == 0 || voltage_mv == UINT16_MAX) {
+        // UINT16_MAX is used as invalid indicator
+        return false;
+    }
+    voltage = voltage_mv*0.001;
+    return true;
 }
 
 // returns true if there is a temperature reading
@@ -1026,6 +1061,15 @@ uint32_t AP_BattMonitor::get_mavlink_fault_bitmask(const uint8_t instance) const
     return drivers[instance]->get_mavlink_fault_bitmask();
 }
 
+// return true if state of health (as a percentage) can be provided and fills in soh_pct argument
+bool AP_BattMonitor::get_state_of_health_pct(uint8_t instance, uint8_t &soh_pct) const
+{
+    if (instance >= _num_instances || drivers[instance] == nullptr) {
+        return false;
+    }
+    return drivers[instance]->get_state_of_health_pct(soh_pct);
+}
+
 // Enable/Disable (Turn on/off) MPPT power to all backends who are MPPTs
 void AP_BattMonitor::MPPT_set_powered_state_to_all(const bool power_on)
 {
@@ -1057,6 +1101,19 @@ bool AP_BattMonitor::healthy() const
     return true;
 }
 
+#if AP_BATTERY_SCRIPTING_ENABLED
+/*
+  handle state update from a lua script
+ */
+bool AP_BattMonitor::handle_scripting(uint8_t idx, const BattMonitorScript_State &_state)
+{
+    if (idx >= _num_instances) {
+        return false;
+    }
+    return drivers[idx]->handle_scripting(_state);
+}
+#endif
+
 namespace AP {
 
 AP_BattMonitor &battery()
@@ -1065,3 +1122,5 @@ AP_BattMonitor &battery()
 }
 
 };
+
+#endif  // AP_BATTERY_ENABLED

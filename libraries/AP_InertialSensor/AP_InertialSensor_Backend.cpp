@@ -1,6 +1,7 @@
 #define AP_INLINE_VECTOR_OPS
 
 #include <AP_HAL/AP_HAL.h>
+#include <AP_AHRS/AP_AHRS.h>
 #include "AP_InertialSensor.h"
 #include "AP_InertialSensor_Backend.h"
 #include <AP_Logger/AP_Logger.h>
@@ -218,7 +219,7 @@ void AP_InertialSensor_Backend::apply_gyro_filters(const uint8_t instance, const
             continue;
         }
         bool inactive = notch.is_inactive();
-#ifndef HAL_BUILD_AP_PERIPH
+#if AP_AHRS_ENABLED
         // by default we only run the expensive notch filters on the
         // currently active IMU we reset the inactive notch filters so
         // that if we switch IMUs we're not left with old data
@@ -442,8 +443,14 @@ void AP_InertialSensor_Backend::log_gyro_raw(uint8_t instance, const uint64_t sa
         return;
     }
 
+#if AP_AHRS_ENABLED
+    const bool log_because_primary_gyro = _imu.raw_logging_option_set(AP_InertialSensor::RAW_LOGGING_OPTION::PRIMARY_GYRO_ONLY) && (instance == AP::ahrs().get_primary_gyro_index());
+#else
+    const bool log_because_primary_gyro = false;
+#endif
+
     if (_imu.raw_logging_option_set(AP_InertialSensor::RAW_LOGGING_OPTION::ALL_GYROS) ||
-        (_imu.raw_logging_option_set(AP_InertialSensor::RAW_LOGGING_OPTION::PRIMARY_GYRO_ONLY) && (instance == AP::ahrs().get_primary_gyro_index())) ||
+        log_because_primary_gyro ||
         should_log_imu_raw()) {
 
         if (_imu.raw_logging_option_set(AP_InertialSensor::RAW_LOGGING_OPTION::PRE_AND_POST_FILTER)) {
@@ -662,23 +669,32 @@ void AP_InertialSensor_Backend::_notify_new_delta_velocity(uint8_t instance, con
 }
 
 
-void AP_InertialSensor_Backend::_notify_new_accel_sensor_rate_sample(uint8_t instance, const Vector3f &accel)
+void AP_InertialSensor_Backend::_notify_new_accel_sensor_rate_sample(uint8_t instance, const Vector3f &_accel)
 {
 #if AP_INERTIALSENSOR_BATCHSAMPLER_ENABLED
     if (!_imu.batchsampler.doing_sensor_rate_logging()) {
         return;
     }
+
+    // get batch sampling in correct orientation
+    Vector3f accel = _accel;
+    accel.rotate(_imu._accel_orientation[instance]);
 
     _imu.batchsampler.sample(instance, AP_InertialSensor::IMU_SENSOR_TYPE_ACCEL, AP_HAL::micros64(), accel);
 #endif
 }
 
-void AP_InertialSensor_Backend::_notify_new_gyro_sensor_rate_sample(uint8_t instance, const Vector3f &gyro)
+void AP_InertialSensor_Backend::_notify_new_gyro_sensor_rate_sample(uint8_t instance, const Vector3f &_gyro)
 {
 #if AP_INERTIALSENSOR_BATCHSAMPLER_ENABLED
     if (!_imu.batchsampler.doing_sensor_rate_logging()) {
         return;
     }
+
+    // get batch sampling in correct orientation
+    Vector3f gyro = _gyro;
+    gyro.rotate(_imu._gyro_orientation[instance]);
+
     _imu.batchsampler.sample(instance, AP_InertialSensor::IMU_SENSOR_TYPE_GYRO, AP_HAL::micros64(), gyro);
 #endif
 }
@@ -801,6 +817,7 @@ void AP_InertialSensor_Backend::update_accel(uint8_t instance) /* front end */
     }
 }
 
+#if HAL_LOGGING_ENABLED
 bool AP_InertialSensor_Backend::should_log_imu_raw() const
 {
     if (_imu._log_raw_bit == (uint32_t)-1) {
@@ -816,6 +833,7 @@ bool AP_InertialSensor_Backend::should_log_imu_raw() const
     }
     return true;
 }
+#endif  // HAL_LOGGING_ENABLED
 
 // log an unexpected change in a register for an IMU
 void AP_InertialSensor_Backend::log_register_change(uint32_t bus_id, const AP_HAL::Device::checkreg &reg)

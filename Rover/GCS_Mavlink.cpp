@@ -149,6 +149,7 @@ int16_t GCS_MAVLINK_Rover::vfr_hud_throttle() const
     return rover.g2.motors.get_throttle();
 }
 
+#if AP_RANGEFINDER_ENABLED
 void GCS_MAVLINK_Rover::send_rangefinder() const
 {
     float distance = 0;
@@ -178,6 +179,7 @@ void GCS_MAVLINK_Rover::send_rangefinder() const
         distance,
         voltage);
 }
+#endif  // AP_RANGEFINDER_ENABLED
 
 /*
   send PID tuning message
@@ -523,13 +525,17 @@ static const ap_message STREAM_RAW_SENSORS_msgs[] = {
 static const ap_message STREAM_EXTENDED_STATUS_msgs[] = {
     MSG_SYS_STATUS,
     MSG_POWER_STATUS,
+#if HAL_WITH_MCU_MONITORING
     MSG_MCU_STATUS,
+#endif
     MSG_MEMINFO,
     MSG_CURRENT_WAYPOINT,
     MSG_GPS_RAW,
     MSG_GPS_RTK,
+#if GPS_MAX_RECEIVERS > 1
     MSG_GPS2_RAW,
     MSG_GPS2_RTK,
+#endif
     MSG_NAV_CONTROLLER_OUTPUT,
 #if AP_FENCE_ENABLED
     MSG_FENCE_STATUS,
@@ -550,7 +556,9 @@ static const ap_message STREAM_RC_CHANNELS_msgs[] = {
 };
 static const ap_message STREAM_EXTRA1_msgs[] = {
     MSG_ATTITUDE,
+#if AP_SIM_ENABLED
     MSG_SIMSTATE,
+#endif
     MSG_AHRS2,
     MSG_PID_TUNING,
 };
@@ -563,9 +571,15 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_RANGEFINDER,
     MSG_DISTANCE_SENSOR,
     MSG_SYSTEM_TIME,
+#if AP_BATTERY_ENABLED
     MSG_BATTERY_STATUS,
+#endif
+#if HAL_MOUNT_ENABLED
     MSG_GIMBAL_DEVICE_ATTITUDE_STATUS,
+#endif
+#if AP_OPTICALFLOW_ENABLED
     MSG_OPTICAL_FLOW,
+#endif
 #if COMPASS_CAL_ENABLED
     MSG_MAG_CAL_REPORT,
     MSG_MAG_CAL_PROGRESS,
@@ -576,7 +590,9 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_RPM,
 #endif
     MSG_WHEEL_DISTANCE,
+#if HAL_WITH_ESC_TELEM
     MSG_ESC_TELEMETRY,
+#endif
 #if HAL_EFI_ENABLED
     MSG_EFI_STATUS,
 #endif
@@ -586,7 +602,9 @@ static const ap_message STREAM_PARAMS_msgs[] = {
 };
 static const ap_message STREAM_ADSB_msgs[] = {
     MSG_ADSB_VEHICLE,
+#if AP_AIS_ENABLED
     MSG_AIS_VESSEL,
+#endif
 };
 
 const struct GCS_MAVLINK::stream_entries GCS_MAVLINK::all_stream_entries[] = {
@@ -759,7 +777,7 @@ MAV_RESULT GCS_MAVLINK_Rover::handle_command_int_do_reposition(const mavlink_com
     return MAV_RESULT_ACCEPTED;
 }
 
-void GCS_MAVLINK_Rover::handleMessage(const mavlink_message_t &msg)
+void GCS_MAVLINK_Rover::handle_message(const mavlink_message_t &msg)
 {
     switch (msg.msgid) {
 
@@ -775,13 +793,8 @@ void GCS_MAVLINK_Rover::handleMessage(const mavlink_message_t &msg)
         handle_set_position_target_global_int(msg);
         break;
 
-    case MAVLINK_MSG_ID_RADIO:
-    case MAVLINK_MSG_ID_RADIO_STATUS:
-        handle_radio(msg);
-        break;
-
     default:
-        handle_common_message(msg);
+        GCS_MAVLINK::handle_message(msg);
         break;
     }
 }
@@ -1043,11 +1056,6 @@ void GCS_MAVLINK_Rover::handle_set_position_target_global_int(const mavlink_mess
         // consume just turn rate(probably only skid steering vehicles can do this)
         rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, 0.0f);
     }
-}
-
-void GCS_MAVLINK_Rover::handle_radio(const mavlink_message_t &msg)
-{
-    handle_radio_status(msg, rover.should_log(MASK_LOG_PM));
 }
 
 /*

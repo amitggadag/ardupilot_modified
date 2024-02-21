@@ -368,6 +368,7 @@ struct method_alias {
   int line;
   int num_args;
   enum alias_type type;
+  char *dependency;
 };
 
 struct userdata_field {
@@ -887,6 +888,20 @@ void handle_manual(struct userdata *node, enum alias_type type) {
     }
     alias->num_args = atoi(num_args);
   }
+
+  char *depends_keyword = next_token();
+  if (depends_keyword != NULL) {
+    if (strcmp(depends_keyword, keyword_depends) != 0) {
+      error(ERROR_SINGLETON, "Expected depends keyword for manual method %s %s, got: %s", node->name, name, depends_keyword);
+    } else {
+      char *dependency = strtok(NULL, "");
+      if (dependency == NULL) {
+        error(ERROR_USERDATA, "Expected dependency string for global %s on line", name, state.line_num);
+      }
+      string_copy(&(alias->dependency), dependency);
+    }
+  }
+
   alias->next = node->method_aliases;
   node->method_aliases = alias;
 }
@@ -1371,41 +1386,41 @@ void emit_checker(const struct type t, int arg_number, int skipped, const char *
     arg_number = arg_number + NULLABLE_ARG_COUNT_BASE;
     switch (t.type) {
       case TYPE_BOOLEAN:
-        fprintf(source, "%sbool data_%d;\n", indentation, arg_number);
+        fprintf(source, "%sbool data_%d {};\n", indentation, arg_number);
         break;
       case TYPE_FLOAT:
-        fprintf(source, "%sfloat data_%d;\n", indentation, arg_number);
+        fprintf(source, "%sfloat data_%d {};\n", indentation, arg_number);
         break;
       case TYPE_INT8_T:
-        fprintf(source, "%sint8_t data_%d;\n", indentation, arg_number);
+        fprintf(source, "%sint8_t data_%d {};\n", indentation, arg_number);
         break;
       case TYPE_INT16_T:
-        fprintf(source, "%sint16_t data_%d;\n", indentation, arg_number);
+        fprintf(source, "%sint16_t data_%d {};\n", indentation, arg_number);
         break;
       case TYPE_INT32_T:
-        fprintf(source, "%sint32_t data_%d;\n", indentation, arg_number);
+        fprintf(source, "%sint32_t data_%d {};\n", indentation, arg_number);
         break;
       case TYPE_UINT8_T:
-        fprintf(source, "%suint8_t data_%d;\n", indentation, arg_number);
+        fprintf(source, "%suint8_t data_%d {};\n", indentation, arg_number);
         break;
       case TYPE_UINT16_T:
-        fprintf(source, "%suint16_t data_%d;\n", indentation, arg_number);
+        fprintf(source, "%suint16_t data_%d {};\n", indentation, arg_number);
         break;
       case TYPE_UINT32_T:
-        fprintf(source, "%suint32_t data_%d;\n", indentation, arg_number);
+        fprintf(source, "%suint32_t data_%d {};\n", indentation, arg_number);
         break;
       case TYPE_AP_OBJECT:
       case TYPE_NONE:
       case TYPE_LITERAL:
         return; // nothing to do here, this should potentially be checked outside of this, but it makes an easier implementation to accept it
       case TYPE_STRING:
-        fprintf(source, "%schar * data_%d = {};\n", indentation, arg_number);
+        fprintf(source, "%schar * data_%d {};\n", indentation, arg_number);
         break;
       case TYPE_ENUM:
-        fprintf(source, "%suint32_t data_%d;\n", indentation, arg_number);
+        fprintf(source, "%suint32_t data_%d {};\n", indentation, arg_number);
         break;
       case TYPE_USERDATA:
-        fprintf(source, "%s%s data_%d = {};\n", indentation, t.data.ud.name, arg_number);
+        fprintf(source, "%s%s data_%d {};\n", indentation, t.data.ud.name, arg_number);
         break;
     }
   } else {
@@ -1903,7 +1918,9 @@ void emit_userdata_method(const struct userdata *data, const struct method *meth
   } else if (data->flags & UD_FLAG_SEMAPHORE_POINTER) {
     fprintf(source, "    %s%sget_semaphore()->take_blocking();\n", ud_name, ud_access);
   } else if (data->flags & UD_FLAG_SCHEDULER_SEMAPHORE) {
+    fprintf(source, "#if AP_SCHEDULER_ENABLED\n");
     fprintf(source, "    AP::scheduler().get_semaphore().take_blocking();\n");
+    fprintf(source, "#endif\n");
   }
 
   int static_cast = TRUE;
@@ -2035,7 +2052,9 @@ void emit_userdata_method(const struct userdata *data, const struct method *meth
   } else if (data->flags & UD_FLAG_SEMAPHORE_POINTER) {
     fprintf(source, "    %s%sget_semaphore()->give();\n", ud_name, ud_access);
   } else if (data->flags & UD_FLAG_SCHEDULER_SEMAPHORE) {
+    fprintf(source, "#if AP_SCHEDULER_ENABLED\n");
     fprintf(source, "    AP::scheduler().get_semaphore().give();\n");
+    fprintf(source, "#endif\n");
   }
 
   // we need to emit out refernce arguments, iterate the args again, creating and copying objects, while keeping a new count
@@ -2132,6 +2151,8 @@ void emit_operators(struct userdata *data) {
 
   assert(data->ud_type == UD_USERDATA);
 
+  start_dependency(source, data->dependency);
+
   for (uint32_t i = 1; i < OP_LAST; i = (i << 1)) {
     const char * op_name = get_name_for_operation((data->operations) & i);
     if (op_name == NULL) {
@@ -2171,6 +2192,8 @@ void emit_operators(struct userdata *data) {
     fprintf(source, "}\n\n");
 
   }
+
+  end_dependency(source, data->dependency);
 }
 
 void emit_methods(struct userdata *node) {
@@ -2410,7 +2433,9 @@ void emit_sandbox(void) {
       if (manual_aliases->type != ALIAS_TYPE_MANUAL) {
         error(ERROR_GLOBALS, "Globals only support manual methods");
       }
+      start_dependency(source, manual_aliases->dependency);
       fprintf(source, "    {\"%s\", %s},\n", manual_aliases->alias, manual_aliases->name);
+      end_dependency(source, manual_aliases->dependency);
       manual_aliases = manual_aliases->next;
     }
   }
@@ -2772,6 +2797,11 @@ void emit_index_helpers(void) {
   fprintf(source, "    return false;\n");
   fprintf(source, "}\n\n");
 
+  // If enough stuff is defined out we can end up with no enums.
+  // Rather than work out which defines we would need, just ignore the unused function error.
+  fprintf(source, "#pragma GCC diagnostic push\n");
+  fprintf(source, "#pragma GCC diagnostic ignored \"-Wunused-function\"\n");
+
   fprintf(source, "static bool load_enum(lua_State *L, const userdata_enum *list, const uint8_t length, const char* name) {\n");
   fprintf(source, "    for (uint8_t i = 0; i < length; i++) {\n");
   fprintf(source, "        if (strcmp(name,list[i].name) == 0) {\n");
@@ -2780,7 +2810,10 @@ void emit_index_helpers(void) {
   fprintf(source, "        }\n");
   fprintf(source, "    }\n");
   fprintf(source, "    return false;\n");
-  fprintf(source, "}\n\n");
+  fprintf(source, "}\n");
+
+  fprintf(source, "#pragma GCC diagnostic pop\n\n");
+
 }
 
 void emit_structs(void) {
@@ -2894,6 +2927,8 @@ int main(int argc, char **argv) {
 
   // for set_and_print_new_error_message deprecate warning
   fprintf(source, "#include <AP_Scripting/lua_scripts.h>\n");
+
+  fprintf(source, "extern const AP_HAL::HAL& hal;\n");
 
   trace(TRACE_GENERAL, "Starting emission");
 

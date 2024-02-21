@@ -30,16 +30,13 @@
 #include "SIM_Parachute.h"
 #include "SIM_Precland.h"
 #include "SIM_RichenPower.h"
+#include "SIM_Loweheiser.h"
 #include "SIM_FETtecOneWireESC.h"
 #include "SIM_I2C.h"
 #include "SIM_Buzzer.h"
 #include "SIM_Battery.h"
 #include <Filter/Filter.h>
 #include "SIM_JSON_Master.h"
-
-#ifndef USE_PICOJSON
-#define USE_PICOJSON (CONFIG_HAL_BOARD == HAL_BOARD_SITL || CONFIG_HAL_BOARD == HAL_BOARD_LINUX)
-#endif
 
 namespace SITL {
 
@@ -83,6 +80,8 @@ public:
 
     void update_model(const struct sitl_input &input);
 
+    void update_home();
+
     /* fill a sitl_fdm structure from the simulator state */
     void fill_fdm(struct sitl_fdm &fdm);
 
@@ -121,6 +120,8 @@ public:
         config_ = config;
     }
 
+    // return simulation origin:
+    const Location &get_origin() const { return origin; }
 
     const Location &get_location() const { return location; }
 
@@ -141,6 +142,10 @@ public:
     void set_sprayer(Sprayer *_sprayer) { sprayer = _sprayer; }
     void set_parachute(Parachute *_parachute) { parachute = _parachute; }
     void set_richenpower(RichenPower *_richenpower) { richenpower = _richenpower; }
+    void set_adsb(class ADSB *_adsb) { adsb = _adsb; }
+#if AP_SIM_LOWEHEISER_ENABLED
+    void set_loweheiser(Loweheiser *_loweheiser) { loweheiser = _loweheiser; }
+#endif
     void set_fetteconewireesc(FETtecOneWireESC *_fetteconewireesc) { fetteconewireesc = _fetteconewireesc; }
     void set_ie24(IntelligentEnergy24 *_ie24) { ie24 = _ie24; }
     void set_gripper_servo(Gripper_Servo *_gripper) { gripper = _gripper; }
@@ -152,6 +157,8 @@ public:
 #endif
     float get_battery_voltage() const { return battery_voltage; }
     float get_battery_temperature() const { return battery.get_temperature(); }
+
+    ADSB *adsb;
 
 protected:
     SIM *sitl;
@@ -334,6 +341,9 @@ private:
     Gripper_EPM *gripper_epm;
     Parachute *parachute;
     RichenPower *richenpower;
+#if AP_SIM_LOWEHEISER_ENABLED
+    Loweheiser *loweheiser;
+#endif
     FETtecOneWireESC *fetteconewireesc;
 
     IntelligentEnergy24 *ie24;

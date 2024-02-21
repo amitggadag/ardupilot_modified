@@ -23,6 +23,8 @@
 #include <AP_BoardConfig/AP_BoardConfig.h>
 #include <AP_TemperatureSensor/AP_TemperatureSensor_config.h>
 
+#include <AP_Math/AP_Math.h>
+
 //#define ESC_TELEM_DEBUG
 
 #define ESC_RPM_CHECK_TIMEOUT_US 210000UL   // timeout for motor running validity
@@ -49,7 +51,9 @@ AP_ESC_Telem::AP_ESC_Telem()
         AP_HAL::panic("Too many AP_ESC_Telem instances");
     }
     _singleton = this;
+#if !defined(IOMCU_FW)
     AP_Param::setup_object_defaults(this, var_info);
+#endif
 }
 
 // return the average motor RPM
@@ -107,7 +111,7 @@ uint32_t AP_ESC_Telem::get_active_esc_mask() const {
             // have never seen telem from this ESC
             continue;
         }
-        if (now - _telem_data[i].last_update_ms >= ESC_TELEM_DATA_TIMEOUT_MS
+        if (_telem_data[i].stale(now)
             && !rpm_data_within_timeout(_rpm_data[i], now_us, ESC_RPM_DATA_TIMEOUT_US)) {
             continue;
         }
@@ -211,7 +215,7 @@ bool AP_ESC_Telem::get_raw_rpm(uint8_t esc_index, float& rpm) const
 bool AP_ESC_Telem::get_temperature(uint8_t esc_index, int16_t& temp) const
 {
     if (esc_index >= ESC_TELEM_MAX_ESCS
-        || AP_HAL::millis() - _telem_data[esc_index].last_update_ms > ESC_TELEM_DATA_TIMEOUT_MS
+        || _telem_data[esc_index].stale()
         || !(_telem_data[esc_index].types & (AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE | AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE_EXTERNAL))) {
         return false;
     }
@@ -223,7 +227,7 @@ bool AP_ESC_Telem::get_temperature(uint8_t esc_index, int16_t& temp) const
 bool AP_ESC_Telem::get_motor_temperature(uint8_t esc_index, int16_t& temp) const
 {
     if (esc_index >= ESC_TELEM_MAX_ESCS
-        || AP_HAL::millis() - _telem_data[esc_index].last_update_ms > ESC_TELEM_DATA_TIMEOUT_MS
+        || _telem_data[esc_index].stale()
         || !(_telem_data[esc_index].types & (AP_ESC_Telem_Backend::TelemetryType::MOTOR_TEMPERATURE | AP_ESC_Telem_Backend::TelemetryType::MOTOR_TEMPERATURE_EXTERNAL))) {
         return false;
     }
@@ -251,7 +255,7 @@ bool AP_ESC_Telem::get_highest_motor_temperature(int16_t& temp) const
 bool AP_ESC_Telem::get_current(uint8_t esc_index, float& amps) const
 {
     if (esc_index >= ESC_TELEM_MAX_ESCS
-        || AP_HAL::millis() - _telem_data[esc_index].last_update_ms > ESC_TELEM_DATA_TIMEOUT_MS
+        || _telem_data[esc_index].stale()
         || !(_telem_data[esc_index].types & AP_ESC_Telem_Backend::TelemetryType::CURRENT)) {
         return false;
     }
@@ -263,7 +267,7 @@ bool AP_ESC_Telem::get_current(uint8_t esc_index, float& amps) const
 bool AP_ESC_Telem::get_voltage(uint8_t esc_index, float& volts) const
 {
     if (esc_index >= ESC_TELEM_MAX_ESCS
-        || AP_HAL::millis() - _telem_data[esc_index].last_update_ms > ESC_TELEM_DATA_TIMEOUT_MS
+        || _telem_data[esc_index].stale()
         || !(_telem_data[esc_index].types & AP_ESC_Telem_Backend::TelemetryType::VOLTAGE)) {
         return false;
     }
@@ -275,7 +279,7 @@ bool AP_ESC_Telem::get_voltage(uint8_t esc_index, float& volts) const
 bool AP_ESC_Telem::get_consumption_mah(uint8_t esc_index, float& consumption_mah) const
 {
     if (esc_index >= ESC_TELEM_MAX_ESCS
-        || AP_HAL::millis() - _telem_data[esc_index].last_update_ms > ESC_TELEM_DATA_TIMEOUT_MS
+        || _telem_data[esc_index].stale()
         || !(_telem_data[esc_index].types & AP_ESC_Telem_Backend::TelemetryType::CONSUMPTION)) {
         return false;
     }
@@ -287,7 +291,7 @@ bool AP_ESC_Telem::get_consumption_mah(uint8_t esc_index, float& consumption_mah
 bool AP_ESC_Telem::get_usage_seconds(uint8_t esc_index, uint32_t& usage_s) const
 {
     if (esc_index >= ESC_TELEM_MAX_ESCS
-        || AP_HAL::millis() - _telem_data[esc_index].last_update_ms > ESC_TELEM_DATA_TIMEOUT_MS
+        || _telem_data[esc_index].stale()
         || !(_telem_data[esc_index].types & AP_ESC_Telem_Backend::TelemetryType::USAGE)) {
         return false;
     }
@@ -324,7 +328,7 @@ void AP_ESC_Telem::send_esc_telemetry_mavlink(uint8_t mav_chan)
         for (uint8_t j=0; j<4; j++) {
             const uint8_t esc_id = (i * 4 + j) + esc_offset;
             if (esc_id < ESC_TELEM_MAX_ESCS &&
-                (now - _telem_data[esc_id].last_update_ms <= ESC_TELEM_DATA_TIMEOUT_MS ||
+                (!_telem_data[esc_id].stale(now) ||
                  rpm_data_within_timeout(_rpm_data[esc_id], now_us, ESC_RPM_DATA_TIMEOUT_US))) {
                 all_stale = false;
                 break;
@@ -416,7 +420,7 @@ void AP_ESC_Telem::update_telem_data(const uint8_t esc_index, const AP_ESC_Telem
     // can only get slightly more up-to-date information that perhaps they were expecting or might
     // read data that has just gone stale - both of these are safe and avoid the overhead of locking
 
-    if (esc_index >= ESC_TELEM_MAX_ESCS) {
+    if (esc_index >= ESC_TELEM_MAX_ESCS || data_mask == 0) {
         return;
     }
 
@@ -486,11 +490,14 @@ void AP_ESC_Telem::update_rpm(const uint8_t esc_index, const float new_rpm, cons
 
 void AP_ESC_Telem::update()
 {
+#if HAL_LOGGING_ENABLED
     AP_Logger *logger = AP_Logger::get_singleton();
+#endif
 
     const uint32_t now_us = AP_HAL::micros();
 
     for (uint8_t i = 0; i < ESC_TELEM_MAX_ESCS; i++) {
+#if HAL_LOGGING_ENABLED
         // Push received telemetry data into the logging system
         if (logger && logger->logging_enabled()) {
             if (_telem_data[i].last_update_ms != _last_telem_log_ms[i]
@@ -498,12 +505,12 @@ void AP_ESC_Telem::update()
 
                 float rpm = 0.0f;
                 get_rpm(i, rpm);
-                float rawrpm = 0.0f;
-                get_raw_rpm(i, rawrpm);
+                float raw_rpm = 0.0f;
+                get_raw_rpm(i, raw_rpm);
 
                 // Write ESC status messages
                 //   id starts from 0
-                //   rpm is eRPM (rpm * 100)
+                //   rpm, raw_rpm is eRPM (in RPM units)
                 //   voltage is in Volt
                 //   current is in Ampere
                 //   esc_temp is in centi-degrees Celsius
@@ -514,8 +521,8 @@ void AP_ESC_Telem::update()
                     LOG_PACKET_HEADER_INIT(uint8_t(LOG_ESC_MSG)),
                     time_us     : AP_HAL::micros64(),
                     instance    : i,
-                    rpm         : (int32_t) rpm * 100,
-                    raw_rpm     : (int32_t) rawrpm * 100,
+                    rpm         : rpm,
+                    raw_rpm     : raw_rpm,
                     voltage     : _telem_data[i].voltage,
                     current     : _telem_data[i].current,
                     esc_temp    : _telem_data[i].temperature_cdeg,
@@ -528,6 +535,7 @@ void AP_ESC_Telem::update()
                 _last_rpm_log_us[i] = _rpm_data[i].last_update_us;
             }
         }
+#endif  // HAL_LOGGING_ENABLED
 
         if ((now_us - _rpm_data[i].last_update_us) > ESC_RPM_DATA_TIMEOUT_US) {
             _rpm_data[i].data_valid = false;

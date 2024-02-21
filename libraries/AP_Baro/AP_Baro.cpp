@@ -404,15 +404,12 @@ void AP_Baro::update_calibration()
 // given base_pressure in Pascal
 float AP_Baro::get_altitude_difference(float base_pressure, float pressure) const
 {
-    float ret;
     float temp    = C_TO_KELVIN(get_ground_temperature());
     float scaling = pressure / base_pressure;
 
     // This is an exact calculation that is within +-2.5m of the standard
     // atmosphere tables in the troposphere (up to 11,000 m amsl).
-    ret = 153.8462f * temp * (1.0f - expf(0.190259f * logf(scaling)))-_field_elevation_active;
-
-    return ret;
+    return 153.8462f * temp * (1.0f - expf(0.190259f * logf(scaling)))-_field_elevation_active;
 }
 
 // return sea level pressure where in which the current measured pressure
@@ -877,6 +874,7 @@ void AP_Baro::_probe_i2c_barometers(void)
     }
 }
 
+#if HAL_LOGGING_ENABLED
 bool AP_Baro::should_log() const
 {
     AP_Logger *logger = AP_Logger::get_singleton();
@@ -891,6 +889,7 @@ bool AP_Baro::should_log() const
     }
     return true;
 }
+#endif
 
 /*
   call update on all drivers
@@ -902,7 +901,7 @@ void AP_Baro::update(void)
     if (fabsf(_alt_offset - _alt_offset_active) > 0.01f) {
         // If there's more than 1cm difference then slowly slew to it via LPF.
         // The EKF does not like step inputs so this keeps it happy.
-        _alt_offset_active = (0.95f*_alt_offset_active) + (0.05f*_alt_offset);
+        _alt_offset_active = (0.98f*_alt_offset_active) + (0.02f*_alt_offset);
     } else {
         _alt_offset_active = _alt_offset;
     }

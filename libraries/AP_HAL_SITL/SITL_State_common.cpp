@@ -18,7 +18,7 @@
 
 #include <AP_Param/AP_Param.h>
 #include <SITL/SIM_JSBSim.h>
-#include <AP_HAL/utility/Socket.h>
+#include <AP_HAL/utility/Socket_native.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -49,6 +49,7 @@ SITL::SerialDevice *SITL_State_Common::create_serial_sim(const char *name, const
         if (adsb == nullptr) {
             adsb = new SITL::ADSB();
         }
+        sitl_model->set_adsb(adsb);
         return adsb;
 #endif
     } else if (streq(name, "benewake_tf03")) {
@@ -209,6 +210,23 @@ SITL::SerialDevice *SITL_State_Common::create_serial_sim(const char *name, const
         sf45b = new SITL::PS_LightWare_SF45B();
         return sf45b;
 #endif
+#if AP_SIM_ADSB_SAGETECH_MXS_ENABLED
+    } else if (streq(name, "sagetech_mxs")) {
+        if (sagetech_mxs != nullptr) {
+            AP_HAL::panic("Only one sagetech_mxs at a time");
+        }
+        sagetech_mxs = new SITL::ADSB_Sagetech_MXS();
+        if (adsb == nullptr) {
+            adsb = new SITL::ADSB();
+        }
+        sitl_model->set_adsb(adsb);
+        return sagetech_mxs;
+#endif
+#if AP_SIM_LOWEHEISER_ENABLED
+    } else if (streq(name, "loweheiser")) {
+        sitl_model->set_loweheiser(&_sitl->loweheiser_sim);
+        return &_sitl->loweheiser_sim;
+#endif
 #if !defined(HAL_BUILD_AP_PERIPH)
     } else if (streq(name, "richenpower")) {
         sitl_model->set_richenpower(&_sitl->richenpower_sim);
@@ -220,6 +238,12 @@ SITL::SerialDevice *SITL_State_Common::create_serial_sim(const char *name, const
         sitl_model->set_ie24(&_sitl->ie24_sim);
         return &_sitl->ie24_sim;
 #endif // HAL_BUILD_AP_PERIPH
+    } else if (streq(name, "jre")) {
+        if (jre != nullptr) {
+            AP_HAL::panic("Only one jre at a time");
+        }
+        jre = new SITL::RF_JRE();
+        return jre;
     } else if (streq(name, "gyus42v2")) {
         if (gyus42v2 != nullptr) {
             AP_HAL::panic("Only one gyus42v2 at a time");
@@ -232,6 +256,12 @@ SITL::SerialDevice *SITL_State_Common::create_serial_sim(const char *name, const
         }
         efi_ms = new SITL::EFI_MegaSquirt();
         return efi_ms;
+    } else if (streq(name, "hirth")) {
+        if (efi_hirth != nullptr) {
+            AP_HAL::panic("Only one hirth at a time");
+        }
+        efi_hirth = new SITL::EFI_Hirth();
+        return efi_hirth;
     } else if (streq(name, "VectorNav")) {
         if (vectornav != nullptr) {
             AP_HAL::panic("Only one VectorNav at a time");
@@ -244,6 +274,21 @@ SITL::SerialDevice *SITL_State_Common::create_serial_sim(const char *name, const
         }
         microstrain5 = new SITL::MicroStrain5();
         return microstrain5;
+
+    } else if (streq(name, "MicroStrain7")) {
+        if (microstrain7 != nullptr) {
+            AP_HAL::panic("Only one MicroStrain7 at a time");
+        }
+        microstrain7 = new SITL::MicroStrain7();
+        return microstrain7;
+
+    } else if (streq(name, "ILabs")) {
+        if (inertiallabs != nullptr) {
+            AP_HAL::panic("Only one InertialLabs INS at a time");
+        }
+        inertiallabs = new SITL::InertialLabs();
+        return inertiallabs;
+
 #if HAL_SIM_AIS_ENABLED
     } else if (streq(name, "AIS")) {
         if (ais != nullptr) {
@@ -302,6 +347,9 @@ void SITL_State_Common::sim_update(void)
     if (benewake_tfmini != nullptr) {
         benewake_tfmini->update(sitl_model->rangefinder_range());
     }
+    if (jre != nullptr) {
+        jre->update(sitl_model->rangefinder_range());
+    }
     if (nooploop != nullptr) {
         nooploop->update(sitl_model->rangefinder_range());
     }
@@ -350,6 +398,9 @@ void SITL_State_Common::sim_update(void)
     if (efi_ms != nullptr) {
         efi_ms->update();
     }
+    if (efi_hirth != nullptr) {
+        efi_hirth->update();
+    }
 
     if (frsky_d != nullptr) {
         frsky_d->update();
@@ -390,12 +441,25 @@ void SITL_State_Common::sim_update(void)
     }
 #endif
 
+#if AP_SIM_ADSB_SAGETECH_MXS_ENABLED
+    if (sagetech_mxs != nullptr) {
+        sagetech_mxs->update(sitl_model);
+    }
+#endif
+
     if (vectornav != nullptr) {
         vectornav->update();
     }
 
     if (microstrain5 != nullptr) {
         microstrain5->update();
+    }
+
+    if (microstrain7 != nullptr) {
+        microstrain7->update();
+    }
+    if (inertiallabs != nullptr) {
+        inertiallabs->update();
     }
 
 #if HAL_SIM_AIS_ENABLED

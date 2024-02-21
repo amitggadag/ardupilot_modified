@@ -25,6 +25,12 @@
 #include <AP_Param/AP_Param.h>
 #include <Filter/LowPassFilter.h>
 #include <AP_RPM/AP_RPM_config.h>
+#include <AP_HAL/I2CDevice.h>
+#include <AP_Relay/AP_Relay_config.h>
+
+#if AP_ICENGINE_TCA9554_STARTER_ENABLED
+#include "AP_ICEngine_TCA9554.h"
+#endif
 
 class AP_ICEngine {
 public:
@@ -52,20 +58,26 @@ public:
     ICE_State get_state(void) const { return !enable?ICE_DISABLED:state; }
 
     // handle DO_ENGINE_CONTROL messages via MAVLink or mission
-    bool engine_control(float start_control, float cold_start, float height_delay);
+    bool engine_control(float start_control, float cold_start, float height_delay, uint32_t flags);
 
     // update min throttle for idle governor
     void update_idle_governor(int8_t &min_throttle);
 
     // do we have throttle while disarmed enabled?
-    bool allow_throttle_while_disarmed(void) const {
-        return enable && option_set(Options::THROTTLE_WHILE_DISARMED);
-    }
+    bool allow_throttle_while_disarmed(void) const;
+
+#if AP_RELAY_ENABLED
+    // Needed for param conversion from relay numbers to functions
+    bool get_legacy_ignition_relay_index(int8_t &num);
+#endif
 
     static AP_ICEngine *get_singleton() { return _singleton; }
 
 private:
     static AP_ICEngine *_singleton;
+
+    void set_ignition(bool on);
+    void set_starter(bool on);
 
     enum ICE_State state;
 
@@ -128,7 +140,7 @@ private:
     // Idle Controller Slew Rate
     AP_Float idle_slew;
 #endif
-    
+
     // height when we enter ICE_START_HEIGHT_DELAY
     float initial_height;
 
@@ -137,6 +149,8 @@ private:
 
     // we are waiting for valid height data
     bool height_pending:1;
+
+    bool allow_single_start_while_disarmed;
 
     // idle governor
     float idle_governor_integrator;
@@ -156,6 +170,10 @@ private:
     // start_chan debounce
     uint16_t start_chan_last_value = 1500;
     uint32_t start_chan_last_ms;
+
+#if AP_ICENGINE_TCA9554_STARTER_ENABLED
+    AP_ICEngine_TCA9554 tca9554_starter;
+#endif
 
 #if AP_RPM_ENABLED
     // redline rpm

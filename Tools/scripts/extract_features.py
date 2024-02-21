@@ -24,9 +24,14 @@ else:
 
 class ExtractFeatures(object):
 
-    def __init__(self, filename, nm="arm-none-eabi-nm"):
+    class FindString(object):
+        def __init__(self, string):
+            self.string = string
+
+    def __init__(self, filename, nm="arm-none-eabi-nm", strings="strings"):
         self.filename = filename
         self.nm = nm
+        self.strings = strings
 
         # feature_name should match the equivalent feature in
         # build_options.py ('FEATURE_NAME', 'EXPECTED_SYMBOL').
@@ -77,6 +82,7 @@ class ExtractFeatures(object):
             ('AP_RANGEFINDER_LWI2C_ENABLED', r'AP_RangeFinder_LightWareI2C::update\b',),
             ('AP_RANGEFINDER_MAXBOTIX_SERIAL_ENABLED', r'AP_RangeFinder_MaxsonarSerialLV::get_reading\b',),
             ('AP_RANGEFINDER_TRI2C_ENABLED', r'AP_RangeFinder_TeraRangerI2C::update\b',),
+            ('AP_RANGEFINDER_JRE_SERIAL_ENABLED', r'AP_RangeFinder_JRE_Serial::get_reading\b',),
 
             ('AP_GPS_{type}_ENABLED', r'AP_GPS_(?P<type>.*)::read\b',),
 
@@ -95,6 +101,7 @@ class ExtractFeatures(object):
 
             ('AP_BATTERY_{type}_ENABLED', r'AP_BattMonitor_(?P<type>.*)::init\b',),
             ('AP_BATTERY_ESC_TELEM_OUTBOUND_ENABLED', r'AP_BattMonitor_Backend::update_esc_telem_outbound\b',),
+            ('AP_BATTERY_WATT_MAX_ENABLED', 'AP_BattMonitor_Params::_watt_max',),
 
             ('HAL_MOUNT_ENABLED', 'AP_Mount::AP_Mount',),
             ('HAL_MOUNT_{type}_ENABLED', r'AP_Mount_(?P<type>.*)::update\b',),
@@ -103,6 +110,7 @@ class ExtractFeatures(object):
             ('HAL_MOUNT_STORM32MAVLINK_ENABLED', 'AP_Mount_SToRM32::init',),
 
             ('HAL_{type}_TELEM_ENABLED', r'AP_(?P<type>.*)_Telem::init',),
+            ('AP_{type}_TELEM_ENABLED', r'AP_(?P<type>.*)_Telem::init',),
             ('HAL_CRSF_TELEM_TEXT_SELECTION_ENABLED', 'AP_CRSF_Telem::calc_text_selection',),
             ('AP_LTM_TELEM_ENABLED', 'AP_LTM_Telem::init',),
             ('HAL_HIGH_LATENCY2_ENABLED', 'GCS_MAVLINK::handle_control_high_latency',),
@@ -117,6 +125,7 @@ class ExtractFeatures(object):
 
             ('AP_CAMERA_ENABLED', 'AP_Camera::var_info',),
             ('AP_CAMERA_{type}_ENABLED', 'AP_Camera_(?P<type>.*)::trigger_pic',),
+            ('AP_CAMERA_SEND_FOV_STATUS_ENABLED', 'AP_Camera::send_camera_fov_status'),
             ('HAL_RUNCAM_ENABLED', 'AP_RunCam::AP_RunCam',),
 
             ('HAL_PROXIMITY_ENABLED', 'AP_Proximity::AP_Proximity',),
@@ -129,11 +138,13 @@ class ExtractFeatures(object):
             ('HAL_RALLY_ENABLED', r'AP_Rally::get_rally_max\b',),
             ('AC_AVOID_ENABLED', 'AC_Avoid::AC_Avoid',),
             ('AC_OAPATHPLANNER_ENABLED', 'AP_OAPathPlanner::AP_OAPathPlanner',),
-
+            ('AC_PAYLOAD_PLACE_ENABLED', 'PayloadPlace::start_descent'),
+            ('AP_MISSION_NAV_PAYLOAD_PLACE_ENABLED', ExtractFeatures.FindString('PayloadPlace')),
             ('AP_ICENGINE_ENABLED', 'AP_ICEngine::AP_ICEngine',),
             ('HAL_EFI_ENABLED', 'AP_RPM_EFI::AP_RPM_EFI',),
             ('AP_EFI_NWPWU_ENABLED', r'AP_EFI_NWPMU::update\b',),
             ('AP_EFI_CURRAWONG_ECU_ENABLED', r'AP_EFI_Currawong_ECU::update\b',),
+            ('AP_EFI_SERIAL_HIRTH_ENABLED', r'AP_EFI_Serial_Hirth::update\b',),
             ('HAL_GENERATOR_ENABLED', 'AP_Generator::AP_Generator',),
             ('AP_GENERATOR_{type}_ENABLED', r'AP_Generator_(?P<type>.*)::init',),
 
@@ -184,6 +195,7 @@ class ExtractFeatures(object):
             ('HAL_DISPLAY_ENABLED', r'Display::init\b',),
             ('HAL_NMEA_OUTPUT_ENABLED', r'AP_NMEA_Output::update\b',),
             ('HAL_BARO_WIND_COMP_ENABLED', r'AP_Baro::wind_pressure_correction\b',),
+            ('AP_TEMPCALIBRATION_ENABLED', r'AP_TempCalibration::apply_calibration',),
 
             ('HAL_PICCOLO_CAN_ENABLE', r'AP_PiccoloCAN::update',),
             ('EK3_FEATURE_EXTERNAL_NAV', r'NavEKF3::writeExtNavVelData'),
@@ -219,11 +231,19 @@ class ExtractFeatures(object):
             ('AP_MAVLINK_MSG_DEVICE_OP_ENABLED', 'GCS_MAVLINK::handle_device_op_write'),
             ('AP_MAVLINK_SERVO_RELAY_ENABLED', 'GCS_MAVLINK::handle_servorelay_message'),
             ('AP_MAVLINK_MSG_SERIAL_CONTROL_ENABLED', 'GCS_MAVLINK::handle_serial_control'),
-
+            ('AP_MAVLINK_MSG_MISSION_REQUEST_ENABLED', 'GCS_MAVLINK::handle_mission_request\b'),
             ('AP_DRONECAN_HIMARK_SERVO_SUPPORT', 'AP_DroneCAN::SRV_send_himark'),
             ('AP_DRONECAN_HOBBYWING_ESC_SUPPORT', 'AP_DroneCAN::hobbywing_ESC_update'),
             ('COMPASS_CAL_ENABLED', 'CompassCalibrator::stop'),
             ('AP_TUNING_ENABLED', 'AP_Tuning::check_input'),
+            ('AP_DRONECAN_SERIAL_ENABLED', 'AP_DroneCAN_Serial::update'),
+            ('AP_SERIALMANAGER_IMUOUT_ENABLED', 'AP_InertialSensor::send_uart_data'),
+            ('AP_NETWORKING_BACKEND_PPP', 'AP_Networking_PPP::init'),
+            ('FORCE_APJ_DEFAULT_PARAMETERS', 'AP_Param::param_defaults_data'),
+            ('HAL_BUTTON_ENABLED', 'AP_Button::update'),
+            ('HAL_LOGGING_ENABLED', 'AP_Logger::Init'),
+            ('AP_COMPASS_CALIBRATION_FIXED_YAW_ENABLED', 'AP_Compass::mag_cal_fixed_yaw'),
+            ('COMPASS_LEARN_ENABLED', 'CompassLearn::update'),
         ]
 
     def progress(self, msg):
@@ -364,36 +384,53 @@ class ExtractFeatures(object):
 
         return ret
 
+    def extract_strings_from_elf(self, filename):
+        """Runs strings on filename, returns as a list"""
+        text_output = self.run_program('EF', [
+            self.strings,
+            filename
+        ], show_output=False)
+        return text_output.split("\n")
+
     def extract(self):
         '''returns two sets - compiled_in and not_compiled_in'''
 
         build_options_defines = set([x.define for x in build_options.BUILD_OPTIONS])
 
         symbols = self.extract_symbols_from_elf(self.filename)
+        strings = self.extract_strings_from_elf(self.filename)
 
         remaining_build_options_defines = build_options_defines
         compiled_in_feature_defines = []
         for (feature_define, symbol) in self.features:
-            some_dict = symbols.dict_for_symbol(symbol)
-            # look for symbols without arguments
-            # print("Looking for (%s)" % str(name))
-            for s in some_dict.keys():
-                m = re.match(symbol, s)
-                # print("matching %s with %s" % (symbol, s))
-                if m is None:
-                    continue
-                d = m.groupdict()
-                for key in d.keys():
-                    d[key] = d[key].upper()
-                # filter to just the defines present in
-                # build_options.py - otherwise we end up with (e.g.)
-                # AP_AIRSPEED_BACKEND_ENABLED, even 'though that
-                # doesn't exist in the ArduPilot codebase.
-                some_define = feature_define.format(**d)
-                if some_define not in build_options_defines:
-                    continue
-                compiled_in_feature_defines.append(some_define)
-                remaining_build_options_defines.discard(some_define)
+            if isinstance(symbol, ExtractFeatures.FindString):
+                if symbol.string in strings:
+                    some_define = feature_define
+                    if some_define not in build_options_defines:
+                        continue
+                    compiled_in_feature_defines.append(some_define)
+                    remaining_build_options_defines.discard(some_define)
+            else:
+                some_dict = symbols.dict_for_symbol(symbol)
+                # look for symbols without arguments
+                # print("Looking for (%s)" % str(name))
+                for s in some_dict.keys():
+                    m = re.match(symbol, s)
+                    # print("matching %s with %s" % (symbol, s))
+                    if m is None:
+                        continue
+                    d = m.groupdict()
+                    for key in d.keys():
+                        d[key] = d[key].upper()
+                    # filter to just the defines present in
+                    # build_options.py - otherwise we end up with (e.g.)
+                    # AP_AIRSPEED_BACKEND_ENABLED, even 'though that
+                    # doesn't exist in the ArduPilot codebase.
+                    some_define = feature_define.format(**d)
+                    if some_define not in build_options_defines:
+                        continue
+                    compiled_in_feature_defines.append(some_define)
+                    remaining_build_options_defines.discard(some_define)
         return (compiled_in_feature_defines, remaining_build_options_defines)
 
     def create_string(self):

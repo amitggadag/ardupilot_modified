@@ -41,6 +41,7 @@ const AP_Param::Info Blimp::var_info[] = {
     // @DisplayName: My ground station number
     // @Description: Allows restricting radio overrides to only come from my ground station
     // @Range: 1 255
+    // @Increment: 1
     // @User: Advanced
     GSCALAR(sysid_my_gcs,   "SYSID_MYGCS",     255),
 
@@ -339,10 +340,6 @@ const AP_Param::Info Blimp::var_info[] = {
     // @Group: AHRS_
     // @Path: ../libraries/AP_AHRS/AP_AHRS.cpp
     GOBJECT(ahrs,                   "AHRS_",    AP_AHRS),
-
-    // @Group: LOG
-    // @Path: ../libraries/AP_Logger/AP_Logger.cpp
-    GOBJECT(logger,           "LOG",  AP_Logger),
 
     // @Group: BATT
     // @Path: ../libraries/AP_BattMonitor/AP_BattMonitor.cpp
@@ -729,6 +726,26 @@ const AP_Param::Info Blimp::var_info[] = {
     // @Increment: 10
     // @Units: d%
     // @User: Advanced
+
+    // @Param: POSYAW_D_FF
+    // @DisplayName: Position (yaw) Derivative FeedForward Gain
+    // @Description: FF D Gain which produces an output that is proportional to the rate of change of the target
+    // @Range: 0 0.1
+    // @Increment: 0.001
+    // @User: Advanced
+
+    // @Param: POSYAW_NTF
+    // @DisplayName: Position (yaw) Target notch filter index
+    // @Description: Position (yaw) Target notch filter index
+    // @Range: 1 8
+    // @User: Advanced
+
+    // @Param: POSYAW_NEF
+    // @DisplayName: Position (yaw) Error notch filter index
+    // @Description: Position (yaw) Error notch filter index
+    // @Range: 1 8
+    // @User: Advanced
+
     GOBJECT(pid_pos_yaw, "POSYAW_", AC_PID),
 
     // @Group:
@@ -757,11 +774,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SYSID_ENFORCE", 11, ParametersG2, sysid_enforce, 0),
 
-#if STATS_ENABLED == ENABLED
-    // @Group: STAT
-    // @Path: ../libraries/AP_Stats/AP_Stats.cpp
-    AP_SUBGROUPINFO(stats, "STAT", 12, ParametersG2, AP_Stats),
-#endif
+    // 12 was AP_Stats
 
     // @Param: FRAME_CLASS
     // @DisplayName: Frame Class
@@ -788,11 +801,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("PILOT_SPEED_DN", 24, ParametersG2, pilot_speed_dn, 0),
 
-#if AP_SCRIPTING_ENABLED
-    // @Group: SCR_
-    // @Path: ../libraries/AP_Scripting/AP_Scripting.cpp
-    AP_SUBGROUPINFO(scripting, "SCR_", 30, ParametersG2, AP_Scripting),
-#endif
+    // 30 was AP_Scripting
 
     // @Param: FS_VIBE_ENABLE
     // @DisplayName: Vibration Failsafe enable
@@ -831,27 +840,41 @@ ParametersG2::ParametersG2(void)
 
 void Blimp::load_parameters(void)
 {
-    hal.util->set_soft_armed(false);
+    AP_Vehicle::load_parameters(g.format_version, Parameters::k_format_version);
 
-    if (!g.format_version.load() ||
-        g.format_version != Parameters::k_format_version) {
+    // PARAMETER_CONVERSION - Added: Jan-2024 for Copter-4.6
+#if AP_STATS_ENABLED
+    {
+        // Find G2's Top Level Key
+        AP_Param::ConversionInfo info;
+        if (!AP_Param::find_top_level_key_by_pointer(&g2, info.old_key)) {
+            return;
+        }
 
-        // erase all parameters
-        hal.console->printf("Firmware change: erasing EEPROM...\n");
-        StorageManager::erase();
-        AP_Param::erase_all();
-
-        // save the current format version
-        g.format_version.set_and_save(Parameters::k_format_version);
-        hal.console->printf("done.\n");
+        const uint16_t old_index = 12;       // Old parameter index in g2
+        const uint16_t old_top_element = 4044; // Old group element in the tree for the first subgroup element (see AP_PARAM_KEY_DUMP)
+        AP_Param::convert_class(info.old_key, &stats, stats.var_info, old_index, old_top_element, false);
     }
-    g.format_version.set_default(Parameters::k_format_version);
+#endif
+    // PARAMETER_CONVERSION - Added: Jan-2024 for Copter-4.6
+#if AP_SCRIPTING_ENABLED
+    {
+        // Find G2's Top Level Key
+        AP_Param::ConversionInfo info;
+        if (!AP_Param::find_top_level_key_by_pointer(&g2, info.old_key)) {
+            return;
+        }
 
-    uint32_t before = micros();
-    // Load all auto-loaded EEPROM variables
-    AP_Param::load_all();
+        const uint16_t old_index = 30;       // Old parameter index in g2
+        const uint16_t old_top_element = 94; // Old group element in the tree for the first subgroup element (see AP_PARAM_KEY_DUMP)
+        AP_Param::convert_class(info.old_key, &scripting, scripting.var_info, old_index, old_top_element, false);
+    }
+#endif
 
-    hal.console->printf("load_all took %uus\n", (unsigned)(micros() - before));
+    // PARAMETER_CONVERSION - Added: Feb-2024
+#if HAL_LOGGING_ENABLED
+    AP_Param::convert_class(g.k_param_logger, &logger, logger.var_info, 0, 0, true);
+#endif
 
     // setup AP_Param frame type flags
     AP_Param::set_frame_type_flags(AP_PARAM_FRAME_BLIMP);

@@ -150,7 +150,7 @@ static const char* get_frame_type(uint8_t byte, uint8_t subtype = 0)
 #define CRSF_INTER_FRAME_TIME_US_250HZ    4000U // At fastest, frames are sent by the transmitter every 4 ms, 250 Hz
 #define CRSF_INTER_FRAME_TIME_US_150HZ    6667U // At medium, frames are sent by the transmitter every 6.667 ms, 150 Hz
 #define CRSF_INTER_FRAME_TIME_US_50HZ    20000U // At slowest, frames are sent by the transmitter every 20ms, 50 Hz
-#define CSRF_HEADER_TYPE_LEN     (CSRF_HEADER_LEN + 1)           // header length including type
+#define CRSF_HEADER_TYPE_LEN     (CRSF_HEADER_LEN + 1)           // header length including type
 
 #define CRSF_DIGITAL_CHANNEL_MIN 172
 #define CRSF_DIGITAL_CHANNEL_MAX 1811
@@ -234,12 +234,16 @@ void AP_RCProtocol_CRSF::_process_byte(uint32_t timestamp_us, uint8_t byte)
     add_to_buffer(_frame_ofs++, byte);
 
     // need a header to get the length
-    if (_frame_ofs < CSRF_HEADER_TYPE_LEN) {
+    if (_frame_ofs < CRSF_HEADER_TYPE_LEN) {
+        return;
+    }
+
+    if (_frame.device_address != DeviceAddress::CRSF_ADDRESS_FLIGHT_CONTROLLER) {
         return;
     }
 
     // parse the length
-    if (_frame_ofs == CSRF_HEADER_TYPE_LEN) {
+    if (_frame_ofs == CRSF_HEADER_TYPE_LEN) {
         _frame_crc = crc8_dvb_s2(0, _frame.type);
         // check for garbage frame
         if (_frame.length > CRSF_FRAME_PAYLOAD_MAX) {
@@ -249,19 +253,19 @@ void AP_RCProtocol_CRSF::_process_byte(uint32_t timestamp_us, uint8_t byte)
     }
 
     // update crc
-    if (_frame_ofs < _frame.length + CSRF_HEADER_LEN) {
+    if (_frame_ofs < _frame.length + CRSF_HEADER_LEN) {
         _frame_crc = crc8_dvb_s2(_frame_crc, byte);
     }
 
     // overflow check
-    if (_frame_ofs > _frame.length + CSRF_HEADER_LEN) {
+    if (_frame_ofs > _frame.length + CRSF_HEADER_LEN) {
         _frame_ofs = 0;
         return;
     }
 
     // decode whatever we got and expect
-    if (_frame_ofs == _frame.length + CSRF_HEADER_LEN) {
-        log_data(AP_RCProtocol::CRSF, timestamp_us, (const uint8_t*)&_frame, _frame_ofs - CSRF_HEADER_LEN);
+    if (_frame_ofs == _frame.length + CRSF_HEADER_LEN) {
+        log_data(AP_RCProtocol::CRSF, timestamp_us, (const uint8_t*)&_frame, _frame_ofs - CRSF_HEADER_LEN);
 
         // we consumed the partial frame, reset
         _frame_ofs = 0;
@@ -295,14 +299,14 @@ void AP_RCProtocol_CRSF::update(void)
         for (uint8_t i = 0; i < n; i++) {
             int16_t b = _uart->read();
             if (b >= 0) {
-                process_byte(AP_HAL::micros(), uint8_t(b));
+                _process_byte(AP_HAL::micros(), uint8_t(b));
             }
         }
     }
 
     // never received RC frames, but have received CRSF frames so make sure we give the telemetry opportunity to run
     uint32_t now = AP_HAL::micros();
-    if (_last_frame_time_us > 0 && (!get_rc_frame_count() || !is_tx_active())
+    if (_last_frame_time_us > 0 && (!get_rc_input_count() || !is_tx_active())
         && now - _last_frame_time_us > CRSF_INTER_FRAME_TIME_US_250HZ) {
         process_telemetry(false);
         _last_frame_time_us = now;
@@ -617,7 +621,7 @@ void AP_RCProtocol_CRSF::process_handshake(uint32_t baudrate)
         || baudrate != CRSF_BAUDRATE
         || baudrate == get_bootstrap_baud_rate()
         || uart->get_baud_rate() == get_bootstrap_baud_rate()
-        || (get_rc_protocols_mask() & ((1U<<(uint8_t(AP_RCProtocol::CRSF)+1))+1)) == 0) {
+        || !protocol_enabled(AP_RCProtocol::CRSF)) {
         return;
     }
 

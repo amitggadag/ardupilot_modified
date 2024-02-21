@@ -1,5 +1,7 @@
 #include "Copter.h"
 
+#include <AP_Gripper/AP_Gripper.h>
+
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -46,6 +48,7 @@ const AP_Param::Info Copter::var_info[] = {
     // @DisplayName: My ground station number
     // @Description: Allows restricting radio overrides to only come from my ground station
     // @Range: 1 255
+    // @Increment: 1
     // @User: Advanced
     GSCALAR(sysid_my_gcs,   "SYSID_MYGCS",     255),
 
@@ -450,9 +453,9 @@ const AP_Param::Info Copter::var_info[] = {
 #endif
 
 #if AP_RELAY_ENABLED
-    // @Group: RELAY_
+    // @Group: RELAY
     // @Path: ../libraries/AP_Relay/AP_Relay.cpp
-    GOBJECT(relay,                  "RELAY_", AP_Relay),
+    GOBJECT(relay,                  "RELAY", AP_Relay),
 #endif
 
 #if PARACHUTE == ENABLED
@@ -497,11 +500,7 @@ const AP_Param::Info Copter::var_info[] = {
 
     // @Group: ATC_
     // @Path: ../libraries/AC_AttitudeControl/AC_AttitudeControl.cpp,../libraries/AC_AttitudeControl/AC_AttitudeControl_Multi.cpp,../libraries/AC_AttitudeControl/AC_AttitudeControl_Heli.cpp
-#if FRAME_CONFIG == HELI_FRAME
-    GOBJECTPTR(attitude_control, "ATC_", AC_AttitudeControl_Heli),
-#else
-    GOBJECTPTR(attitude_control, "ATC_", AC_AttitudeControl_Multi),
-#endif
+    GOBJECTVARPTR(attitude_control, "ATC_", &copter.attitude_control_var_info),
 
     // @Group: PSC
     // @Path: ../libraries/AC_AttitudeControl/AC_PosControl.cpp
@@ -556,10 +555,6 @@ const AP_Param::Info Copter::var_info[] = {
     // @Path: ../libraries/AP_Mount/AP_Mount.cpp
     GOBJECT(camera_mount,           "MNT",  AP_Mount),
 #endif
-
-    // @Group: LOG
-    // @Path: ../libraries/AP_Logger/AP_Logger.cpp
-    GOBJECT(logger,           "LOG",  AP_Logger),
 
     // @Group: BATT
     // @Path: ../libraries/AP_BattMonitor/AP_BattMonitor.cpp
@@ -699,6 +694,20 @@ const AP_Param::Info Copter::var_info[] = {
     // @Values: 0:Stopped,1:Running
     // @User: Standard
     GSCALAR(throw_motor_start, "THROW_MOT_START", (float)ModeThrow::PreThrowMotorState::STOPPED),
+
+    // @Param: THROW_ALT_MIN
+    // @DisplayName: Throw mode minimum altitude
+    // @Description: Minimum altitude above which Throw mode will detect a throw or a drop - 0 to disable the check
+    // @Units: m
+    // @User: Advanced
+    GSCALAR(throw_altitude_min, "THROW_ALT_MIN", 0),
+
+    // @Param: THROW_ALT_MAX
+    // @DisplayName: Throw mode maximum altitude
+    // @Description: Maximum altitude under which Throw mode will detect a throw or a drop - 0 to disable the check
+    // @Units: m
+    // @User: Advanced
+    GSCALAR(throw_altitude_max, "THROW_ALT_MAX", 0),
 #endif
 
 #if OSD_ENABLED || OSD_PARAM_ENABLED
@@ -808,17 +817,9 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SYSID_ENFORCE", 11, ParametersG2, sysid_enforce, 0),
 
-#if STATS_ENABLED == ENABLED
-    // @Group: STAT
-    // @Path: ../libraries/AP_Stats/AP_Stats.cpp
-    AP_SUBGROUPINFO(stats, "STAT", 12, ParametersG2, AP_Stats),
-#endif
+    // 12 was AP_Stats
 
-#if AP_GRIPPER_ENABLED
-    // @Group: GRIP_
-    // @Path: ../libraries/AP_Gripper/AP_Gripper.cpp
-    AP_SUBGROUPINFO(gripper, "GRIP_", 13, ParametersG2, AP_Gripper),
-#endif
+    // 13 was AP_Gripper
 
     // @Param: FRAME_CLASS
     // @DisplayName: Frame Class
@@ -838,9 +839,11 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
 
     // 18 was used by AP_VisualOdom
 
+#if AP_TEMPCALIBRATION_ENABLED
     // @Group: TCAL
     // @Path: ../libraries/AP_TempCalibration/AP_TempCalibration.cpp
     AP_SUBGROUPINFO(temp_calibration, "TCAL", 19, ParametersG2, AP_TempCalibration),
+#endif
 
 #if TOY_MODE_ENABLED == ENABLED
     // @Group: TMODE
@@ -892,7 +895,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_SUBGROUPINFO(follow, "FOLL", 27, ParametersG2, AP_Follow),
 #endif
 
-#ifdef USER_PARAMS_ENABLED
+#if USER_PARAMS_ENABLED == ENABLED
     AP_SUBGROUPINFO(user_parameters, "USR", 28, ParametersG2, UserParameters),
 #endif
 
@@ -902,11 +905,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_SUBGROUPPTR(autotune_ptr, "AUTOTUNE_",  29, ParametersG2, AutoTune),
 #endif
 
-#if AP_SCRIPTING_ENABLED
-    // @Group: SCR_
-    // @Path: ../libraries/AP_Scripting/AP_Scripting.cpp
-    AP_SUBGROUPINFO(scripting, "SCR_", 30, ParametersG2, AP_Scripting),
-#endif
+    // 30 was AP_Scripting
 
     // @Param: TUNE_MIN
     // @DisplayName: Tuning minimum
@@ -1227,6 +1226,14 @@ const AP_Param::GroupInfo ParametersG2::var_info2[] = {
     AP_GROUPINFO("TKOFF_RPM_MAX", 7, ParametersG2, takeoff_rpm_max, 0),
 #endif
 
+    // @Param: FS_EKF_FILT
+    // @DisplayName: EKF Failsafe filter cutoff
+    // @Description: EKF Failsafe filter cutoff frequency. EKF variances are filtered using this value to avoid spurious failsafes from transient high variances. A higher value means the failsafe is more likely to trigger.
+    // @Range: 0 10
+    // @Units: Hz
+    // @User: Advanced
+    AP_GROUPINFO("FS_EKF_FILT", 8, ParametersG2, fs_ekf_filt_hz, FS_EKF_FILT_DEFAULT),
+
     // ID 62 is reserved for the AP_SUBGROUPEXTENSION
 
     AP_GROUPEND
@@ -1236,7 +1243,10 @@ const AP_Param::GroupInfo ParametersG2::var_info2[] = {
   constructor for g2 object
  */
 ParametersG2::ParametersG2(void)
-    : temp_calibration() // this doesn't actually need constructing, but removing it here is problematic syntax-wise
+    : command_model_pilot(PILOT_Y_RATE_DEFAULT, PILOT_Y_EXPO_DEFAULT, 0.0f)
+#if AP_TEMPCALIBRATION_ENABLED
+    , temp_calibration()
+#endif
 #if AP_BEACON_ENABLED
     , beacon()
 #endif
@@ -1255,7 +1265,7 @@ ParametersG2::ParametersG2(void)
 #if MODE_FOLLOW_ENABLED == ENABLED
     ,follow()
 #endif
-#ifdef USER_PARAMS_ENABLED
+#if USER_PARAMS_ENABLED == ENABLED
     ,user_parameters()
 #endif
 #if AUTOTUNE_ENABLED == ENABLED
@@ -1281,8 +1291,6 @@ ParametersG2::ParametersG2(void)
 #if MODE_ACRO_ENABLED == ENABLED || MODE_DRIFT_ENABLED == ENABLED
     ,command_model_acro_y(ACRO_Y_RATE_DEFAULT, ACRO_Y_EXPO_DEFAULT, 0.0f)
 #endif
-
-    ,command_model_pilot(PILOT_Y_RATE_DEFAULT, PILOT_Y_EXPO_DEFAULT, 0.0f)
 
 #if WEATHERVANE_ENABLED == ENABLED
     ,weathervane()
@@ -1329,25 +1337,8 @@ const AP_Param::ConversionInfo conversion_table[] = {
 
 void Copter::load_parameters(void)
 {
-    hal.util->set_soft_armed(false);
+    AP_Vehicle::load_parameters(g.format_version, Parameters::k_format_version);
 
-    if (!g.format_version.load() ||
-        g.format_version != Parameters::k_format_version) {
-
-        // erase all parameters
-        DEV_PRINTF("Firmware change: erasing EEPROM...\n");
-        StorageManager::erase();
-        AP_Param::erase_all();
-
-        // save the current format version
-        g.format_version.set_and_save(Parameters::k_format_version);
-        DEV_PRINTF("done.\n");
-    }
-    g.format_version.set_default(Parameters::k_format_version);
-
-    uint32_t before = micros();
-    // Load all auto-loaded EEPROM variables
-    AP_Param::load_all();
     AP_Param::convert_old_parameters(&conversion_table[0], ARRAY_SIZE(conversion_table));
 
 #if AP_LANDINGGEAR_ENABLED
@@ -1366,11 +1357,57 @@ void Copter::load_parameters(void)
     AP_Param::convert_class(g.k_param_fence_old, &fence, fence.var_info, 0, 0, true);
 #endif
 
-    hal.console->printf("load_all took %uus\n", (unsigned)(micros() - before));
+    // PARAMETER_CONVERSION - Added: Jan-2024 for Copter-4.6
+#if AP_STATS_ENABLED
+    {
+        // Find G2's Top Level Key
+        AP_Param::ConversionInfo info;
+        if (!AP_Param::find_top_level_key_by_pointer(&g2, info.old_key)) {
+            return;
+        }
+
+        const uint16_t old_index = 12;       // Old parameter index in g2
+        const uint16_t old_top_element = 4044; // Old group element in the tree for the first subgroup element (see AP_PARAM_KEY_DUMP)
+        AP_Param::convert_class(info.old_key, &stats, stats.var_info, old_index, old_top_element, false);
+    }
+#endif
+    // PARAMETER_CONVERSION - Added: Jan-2024 for Copter-4.6
+#if AP_SCRIPTING_ENABLED
+    {
+        // Find G2's Top Level Key
+        AP_Param::ConversionInfo info;
+        if (!AP_Param::find_top_level_key_by_pointer(&g2, info.old_key)) {
+            return;
+        }
+
+        const uint16_t old_index = 30;       // Old parameter index in g2
+        const uint16_t old_top_element = 94; // Old group element in the tree for the first subgroup element (see AP_PARAM_KEY_DUMP)
+        AP_Param::convert_class(info.old_key, &scripting, scripting.var_info, old_index, old_top_element, false);
+    }
+#endif
+
+    // PARAMETER_CONVERSION - Added: Feb-2024 for Copter-4.6
+#if HAL_LOGGING_ENABLED
+    AP_Param::convert_class(g.k_param_logger, &logger, logger.var_info, 0, 0, true);
+#endif
+
+    // PARAMETER_CONVERSION - Added: Feb-2024 for Copter-4.6
+#if AP_GRIPPER_ENABLED
+    {
+        // Find G2's Top Level Key
+        AP_Param::ConversionInfo info;
+        if (!AP_Param::find_top_level_key_by_pointer(&g2, info.old_key)) {
+            return;
+        }
+
+        const uint16_t old_index = 13;       // Old parameter index in g2
+        const uint16_t old_top_element = 4045; // Old group element in the tree for the first subgroup element (see AP_PARAM_KEY_DUMP)
+        AP_Param::convert_class(info.old_key, &gripper, gripper.var_info, old_index, old_top_element, false);
+    }
+#endif
 
     // setup AP_Param frame type flags
     AP_Param::set_frame_type_flags(AP_PARAM_FRAME_COPTER);
-
 }
 
 // handle conversion of PID gains

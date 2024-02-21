@@ -131,6 +131,7 @@ public:
         GPS_TYPE_UAVCAN_RTK_ROVER = 23,
         GPS_TYPE_UNICORE_NMEA = 24,
         GPS_TYPE_UNICORE_MOVINGBASE_NMEA = 25,
+        GPS_TYPE_SBF_DUAL_ANTENNA = 26,
 #if HAL_SIM_GPS_ENABLED
         GPS_TYPE_SITL = 100,
 #endif
@@ -211,6 +212,7 @@ public:
         float undulation;                   //<height that WGS84 is above AMSL at the current location
         bool have_undulation;               ///<do we have a value for the undulation
         uint32_t last_gps_time_ms;          ///< the system time we got the last GPS timestamp, milliseconds
+        bool announced_detection;           ///< true once we have announced GPS has been seen to the user
         uint64_t last_corrected_gps_time_us;///< the system time we got the last corrected GPS timestamp, microseconds
         bool corrected_timestamp_updated;  ///< true if the corrected timestamp has been updated
         uint32_t lagged_sample_count;       ///< number of samples with 50ms more lag than expected
@@ -605,7 +607,6 @@ protected:
     AP_Int16 _delay_ms[GPS_MAX_RECEIVERS];
     AP_Int8  _com_port[GPS_MAX_RECEIVERS];
     AP_Int8 _blend_mask;
-    AP_Float _blend_tc;
     AP_Int16 _driver_options;
     AP_Int8 _primary;
 #if HAL_ENABLE_DRONECAN_DRIVERS
@@ -624,6 +625,7 @@ protected:
         UBX_Use115200     = (1U << 2U),
         UAVCAN_MBUseDedicatedBus  = (1 << 3U),
         HeightEllipsoid   = (1U << 4),
+        GPSL5HealthOverride = (1U << 5)
     };
 
     // check if an option is set
@@ -739,7 +741,6 @@ private:
     Vector3f _blended_antenna_offset; // blended antenna offset
     float _blended_lag_sec; // blended receiver lag in seconds
     float _blend_weights[GPS_MAX_RECEIVERS]; // blend weight for each GPS. The blend weights must sum to 1.0 across all instances.
-    float _omega_lpf; // cutoff frequency in rad/sec of LPF applied to position offsets
     bool _output_is_blended; // true when a blended GPS solution being output
     uint8_t _blend_health_counter;  // 0 = perfectly health, 100 = very unhealthy
 

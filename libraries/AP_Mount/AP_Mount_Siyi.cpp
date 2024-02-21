@@ -6,6 +6,7 @@
 #include <GCS_MAVLink/GCS.h>
 #include <GCS_MAVLink/include/mavlink/v2.0/checksum.h>
 #include <AP_SerialManager/AP_SerialManager.h>
+#include <AP_RTC/AP_RTC.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -68,6 +69,17 @@ void AP_Mount_Siyi::update()
         } else {
             request_configuration();
         }
+
+#if AP_RTC_ENABLED
+        // send UTC time to the camera
+        if (sent_time_count < 5) {
+            uint64_t utc_usec;
+            if (AP::rtc().get_utc_usec(utc_usec) &&
+                send_packet(SiyiCommandId::SET_TIME, (const uint8_t *)&utc_usec, sizeof(utc_usec))) {
+                sent_time_count++;
+            }
+        }
+#endif
     }
 
     // request attitude at regular intervals
@@ -82,8 +94,17 @@ void AP_Mount_Siyi::update()
         _last_rangefinder_req_ms = now_ms;
     }
 
+    // send attitude to gimbal at 10Hz
+    if (now_ms - _last_attitude_send_ms > 100) {
+        _last_attitude_send_ms = now_ms;
+        send_attitude();
+    }
+
     // run zoom control
     update_zoom_control();
+
+    // change to RC_TARGETING mode if RC input has changed
+    set_rctargeting_on_rcinput_change();
 
     // Get the target angles or rates first depending on the current mount mode
     switch (get_mode()) {
@@ -302,6 +323,7 @@ void AP_Mount_Siyi::read_incoming_packets()
         if (reset_parser) {
             _parsed_msg.state = ParseState::WAITING_FOR_HEADER_LOW;
             _msg_buff_len = 0;
+            reset_parser = false;
         }
     }
 }
@@ -331,11 +353,16 @@ void AP_Mount_Siyi::process_packet()
         _fw_version.camera.major = _msg_buff[_msg_buff_data_start+2];  // firmware major version
         _fw_version.camera.minor = _msg_buff[_msg_buff_data_start+1];  // firmware minor version
         _fw_version.camera.patch = _msg_buff[_msg_buff_data_start+0];  // firmware revision (aka patch)
-        
+
         _fw_version.gimbal.major = _msg_buff[_msg_buff_data_start+6];  // firmware major version
         _fw_version.gimbal.minor = _msg_buff[_msg_buff_data_start+5];  // firmware minor version
         _fw_version.gimbal.patch = _msg_buff[_msg_buff_data_start+4];  // firmware revision (aka patch)
-        
+
+        // camera firmware version may be all zero soon after startup.  giveup and try again later
+        if (_fw_version.camera.major == 0 && _fw_version.camera.minor == 0 && _fw_version.camera.patch == 0) {
+            break;
+        }
+
         _fw_version.received = true;
 
         // display camera info to user
@@ -460,6 +487,8 @@ void AP_Mount_Siyi::process_packet()
                     sev = MAV_SEVERITY_WARNING;
                     break;
             }
+            (void)msg;  // in case GCS_SEND_TEXT not available
+            (void)sev;  // in case GCS_SEND_TEXT not available
             GCS_SEND_TEXT(sev, "Siyi: recording %s", msg);
         }
 
@@ -521,9 +550,9 @@ void AP_Mount_Siyi::process_packet()
         _current_angle_rad.z = -radians((int16_t)UINT16_VALUE(_msg_buff[_msg_buff_data_start+1], _msg_buff[_msg_buff_data_start]) * 0.1);   // yaw angle
         _current_angle_rad.y = radians((int16_t)UINT16_VALUE(_msg_buff[_msg_buff_data_start+3], _msg_buff[_msg_buff_data_start+2]) * 0.1);  // pitch angle
         _current_angle_rad.x = radians((int16_t)UINT16_VALUE(_msg_buff[_msg_buff_data_start+5], _msg_buff[_msg_buff_data_start+4]) * 0.1);  // roll angle
-        //const float yaw_rate_degs = -(int16_t)UINT16_VALUE(_msg_buff[_msg_buff_data_start+7], _msg_buff[_msg_buff_data_start+6]) * 0.1;   // yaw rate
-        //const float pitch_rate_deg = (int16_t)UINT16_VALUE(_msg_buff[_msg_buff_data_start+9], _msg_buff[_msg_buff_data_start+8]) * 0.1;   // pitch rate
-        //const float roll_rate_deg = (int16_t)UINT16_VALUE(_msg_buff[_msg_buff_data_start+11], _msg_buff[_msg_buff_data_start+10]) * 0.1;  // roll rate
+        _current_rates_rads.z = -radians((int16_t)UINT16_VALUE(_msg_buff[_msg_buff_data_start+7], _msg_buff[_msg_buff_data_start+6]) * 0.1);   // yaw rate
+        _current_rates_rads.y = radians((int16_t)UINT16_VALUE(_msg_buff[_msg_buff_data_start+9], _msg_buff[_msg_buff_data_start+8]) * 0.1);   // pitch rate
+        _current_rates_rads.x = radians((int16_t)UINT16_VALUE(_msg_buff[_msg_buff_data_start+11], _msg_buff[_msg_buff_data_start+10]) * 0.1);  // roll rate
         break;
     }
 
@@ -685,7 +714,7 @@ void AP_Mount_Siyi::send_target_angles(float pitch_rad, float yaw_rad, bool yaw_
     const float pitch_rate_scalar = constrain_float(100.0 * pitch_err_rad * AP_MOUNT_SIYI_PITCH_P / AP_MOUNT_SIYI_RATE_MAX_RADS, -100, 100);
 
     // convert yaw angle to body-frame
-    float yaw_bf_rad = yaw_is_ef ? wrap_PI(yaw_rad - AP::ahrs().yaw) : yaw_rad;
+    float yaw_bf_rad = yaw_is_ef ? wrap_PI(yaw_rad - AP::ahrs().get_yaw()) : yaw_rad;
 
     // enforce body-frame yaw angle limits.  If beyond limits always use body-frame control
     const float yaw_bf_min = radians(_params.yaw_angle_min);
@@ -1084,6 +1113,33 @@ void AP_Mount_Siyi::check_firmware_version() const
             minimum_ver.camera.major, minimum_ver.camera.minor, minimum_ver.camera.patch
         );
     }
+}
+
+/*
+ send ArduPilot attitude to gimbal
+*/
+void AP_Mount_Siyi::send_attitude(void)
+{
+    const auto &ahrs = AP::ahrs();
+    struct {
+        uint32_t time_boot_ms;
+        float roll, pitch, yaw;
+        float rollspeed, pitchspeed, yawspeed;
+    } attitude;
+
+    // get attitude as euler 321
+    const auto &gyro = ahrs.get_gyro();
+    const uint32_t now_ms = AP_HAL::millis();
+
+    attitude.time_boot_ms = now_ms;
+    attitude.roll = ahrs.get_roll();
+    attitude.pitch = ahrs.get_pitch();
+    attitude.yaw = ahrs.get_yaw();
+    attitude.rollspeed = gyro.x;
+    attitude.pitchspeed = gyro.y;
+    attitude.yawspeed = gyro.z;
+
+    send_packet(SiyiCommandId::EXTERNAL_ATTITUDE, (const uint8_t *)&attitude, sizeof(attitude));
 }
 
 #endif // HAL_MOUNT_SIYI_ENABLED
