@@ -383,6 +383,14 @@ void AC_AttitudeControl::input_euler_rate_roll_pitch_yaw(float euler_roll_rate_c
     float euler_pitch_rate = radians(euler_pitch_rate_cds * 0.01f);
     float euler_yaw_rate = radians(euler_yaw_rate_cds * 0.01f);
 
+    // convert pilot_input roll/yaw rate to QBplane roll/yaw rate
+    Quaternion current_body;
+    Vector3f current_angle;
+    _ahrs.get_quat_body_to_ned(current_body);
+    current_body.to_euler(current_angle.x, current_angle.y, current_angle.z);
+    euler_roll_rate = euler_yaw_rate*sinf(current_angle.y) + euler_roll_rate*cosf(current_angle.y);
+	euler_yaw_rate = euler_yaw_rate*cosf(current_angle.y) + euler_roll_rate*sinf(current_angle.y);
+
     // calculate the attitude target euler angles
     _attitude_target.to_euler(_euler_angle_target);
 

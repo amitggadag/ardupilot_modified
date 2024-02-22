@@ -222,6 +222,7 @@ public:
     friend class ModeZigZag;
     friend class ModeAutorotate;
     friend class ModeTurtle;
+    friend class ModeQbplane;
 
     friend class _AutoTakeoff;
 
@@ -1049,6 +1050,9 @@ private:
 #endif
 #if MODE_TURTLE_ENABLED == ENABLED
     ModeTurtle mode_turtle;
+#endif
+#if MODE_QBPLANE_ENABLED == ENABLED
+    ModeQbplane mode_qbplane;
 #endif
 
     // mode.cpp

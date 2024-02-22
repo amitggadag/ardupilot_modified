@@ -179,6 +179,12 @@ Mode *Copter::mode_from_mode_num(const Mode::Number mode)
             break;
 #endif
 
+#if MODE_QBPLANE_ENABLED == ENABLED
+        case Mode::Number::QBPLANE:
+            ret = &mode_qbplane;
+            break;
+#endif
+
         default:
             break;
     }
