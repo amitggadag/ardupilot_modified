@@ -176,6 +176,7 @@ void AP_RPM::convert_params(void)
             {4, 4, 1}, // MIN_QUAL (Previously the min quality of the 1st RPM instance was used for all RPM instances.)
             {12, 5, 1}, // PIN
             {13, 6, 1}, // ESC_MASK
+
     };
 
     char param_name[17] = {0};
