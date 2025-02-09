@@ -65,7 +65,7 @@ void AC_AttitudeControl_TS::input_euler_rate_yaw_euler_angle_pitch_bf_roll(bool 
     float euler_pitch    = radians(constrain_float(euler_pitch_cd * 0.01f, -90.0f, 90.0f));
     float body_roll      = radians(-body_roll_cd * 0.01f);
 
-    const float cpitch = cosf(euler_pitch);
+    const float cpitch = fabsf(cosf(euler_pitch));
     const float spitch = fabsf(sinf(euler_pitch));
 
     // Compute attitude error

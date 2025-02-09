@@ -5,6 +5,7 @@
 // Write an attitude packet
 void Plane::Log_Write_Attitude(void)
 {
+    Quaternion qtargets;
     Vector3f targets {       // Package up the targets into a vector for commonality with Copter usage of Log_Wrote_Attitude
         nav_roll_cd * 0.01f,
         nav_pitch_cd * 0.01f,
@@ -18,8 +19,11 @@ void Plane::Log_Write_Attitude(void)
         // Also, for bodyframe roll input types, _attitude_target_euler_angle is not maintained
         // since Euler angles are not used and it is a waste of cpu to compute them at the loop rate.
         // Get them from the quaternion instead:
+        qtargets = quadplane.attitude_control->get_attitude_target_quat();
+        qtargets.to_euler(targets.x, targets.y, targets.z);
         quadplane.attitude_control->get_attitude_target_quat().to_euler(targets.x, targets.y, targets.z);
         quadplane.ahrs_view->Write_AttitudeView(targets * RAD_TO_DEG);
+        quadplane.ahrs_view->Write_QuatView(qtargets);
     } else
 #endif
             {

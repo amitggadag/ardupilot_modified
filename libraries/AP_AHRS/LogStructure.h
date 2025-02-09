@@ -6,6 +6,7 @@
     LOG_AHR2_MSG, \
     LOG_AOA_SSA_MSG, \
     LOG_ATTITUDE_MSG, \
+    LOG_QUAT_MSG, \
     LOG_ORGN_MSG, \
     LOG_POS_MSG, \
     LOG_RATE_MSG, \
@@ -68,6 +69,20 @@ struct PACKED log_Attitude {
     float control_yaw;
     float yaw;
     uint8_t  active;
+};
+
+
+struct PACKED log_Quat {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    float qb0;
+    float qb1;
+    float qb2;
+    float qb3;
+    float qt0;
+    float qt1;
+    float qt2;
+    float qt3;
 };
 
 // @LoggerMessage: ORGN
@@ -162,6 +177,8 @@ struct PACKED log_ATSC {
         "AOA", "Qff", "TimeUS,AOA,SSA", "sdd", "F00" , true }, \
     { LOG_ATTITUDE_MSG, sizeof(log_Attitude),\
         "ATT", "QffffffB", "TimeUS,DesRoll,Roll,DesPitch,Pitch,DesYaw,Yaw,AEKF", "sddddhh-", "F000000-" , true }, \
+    { LOG_QUAT_MSG, sizeof(log_Quat),\
+        "QUAT", "Qffffffff", "TimeUS,qb0,qb1,qb2,qb3,qt0,qt1,qt2,qt3", "s--------", "F00000000"}, \
     { LOG_ORGN_MSG, sizeof(log_ORGN), \
         "ORGN","QBLLe","TimeUS,Type,Lat,Lng,Alt", "s#DUm", "F-GGB" }, \
     { LOG_POS_MSG, sizeof(log_POS), \

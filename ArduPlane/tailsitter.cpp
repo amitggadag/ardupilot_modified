@@ -30,7 +30,7 @@ const AP_Param::GroupInfo Tailsitter::var_info[] = {
     // @Description: This enables Tailsitter functionality. A value of 2 forces Qassist active and always stabilize in forward flight with airmode for stabilisation at 0 throttle, for use on vehicles with no control surfaces, vehicle will not arm in forward flight modes, see also Q_OPTIONS "Mtrs_Only_Qassist"
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO_FLAGS("ENABLE", 1, Tailsitter, enable, 0, AP_PARAM_FLAG_ENABLE),
+    AP_GROUPINFO_FLAGS("ENABLE", 1, Tailsitter, enable, 2, AP_PARAM_FLAG_ENABLE),
 
     // @Param: ANGLE
     // @DisplayName: Tailsitter fixed wing transition angle

@@ -139,4 +139,23 @@ void AP_AHRS_View::Write_AttitudeView(const Vector3f &targets) const
     AP::logger().WriteBlock(&pkt, sizeof(pkt));
 }
 
+void AP_AHRS_View::Write_QuatView(const Quaternion &targets) const
+{
+    Quaternion current_attitude;
+    get_quat_body_to_ned(current_attitude);
+    const struct log_Quat pkt{
+        LOG_PACKET_HEADER_INIT(LOG_QUAT_MSG),
+        time_us         : AP_HAL::micros64(),
+        qb0             : current_attitude.q1,
+        qb1             : current_attitude.q2,
+        qb2             : current_attitude.q3,
+        qb3             : current_attitude.q4,
+        qt0             : targets.q1,
+        qt1             : targets.q2,
+        qt2             : targets.q3,
+        qt3             : targets.q4,
+    };
+    AP::logger().WriteBlock(&pkt, sizeof(pkt));
+};
+
 #endif  // HAL_LOGGING_ENABLED

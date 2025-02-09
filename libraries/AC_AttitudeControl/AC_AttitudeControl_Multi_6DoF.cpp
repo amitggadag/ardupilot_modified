@@ -11,7 +11,7 @@
 // rate commands result in the vehicle behaving as a ordinary copter.
 
 // run lowest level body-frame rate controller and send outputs to the motors
-void AC_AttitudeControl_Multi_6DoF::rate_controller_run() {
+void AC_AttitudeControl_Multi_6DoF::rate_controller_run(int32_t target_pitch_angle) {
 
     // pass current offsets to motors and run baseclass controller
     // motors require the offsets to know which way is up

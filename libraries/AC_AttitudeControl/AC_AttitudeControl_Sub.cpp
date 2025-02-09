@@ -415,7 +415,7 @@ void AC_AttitudeControl_Sub::update_throttle_rpy_mix()
     _throttle_rpy_mix = constrain_float(_throttle_rpy_mix, 0.1f, AC_ATTITUDE_CONTROL_MAX);
 }
 
-void AC_AttitudeControl_Sub::rate_controller_run()
+void AC_AttitudeControl_Sub::rate_controller_run(int32_t target_pitch_angle)
 {
     // move throttle vs attitude mixing towards desired (called from here because this is conveniently called on every iteration)
     update_throttle_rpy_mix();

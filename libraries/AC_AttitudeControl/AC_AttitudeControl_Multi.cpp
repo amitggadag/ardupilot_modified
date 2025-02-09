@@ -439,7 +439,7 @@ void AC_AttitudeControl_Multi::update_throttle_rpy_mix()
     _throttle_rpy_mix = constrain_float(_throttle_rpy_mix, 0.1f, AC_ATTITUDE_CONTROL_MAX);
 }
 
-void AC_AttitudeControl_Multi::rate_controller_run_dt(const Vector3f& gyro, float dt)
+void AC_AttitudeControl_Multi::rate_controller_run_dt(const Vector3f& gyro, float dt, int32_t target_pitch_angle)
 {
     // take a copy of the target so that it can't be changed from under us.
     Vector3f ang_vel_body = _ang_vel_body;
@@ -455,13 +455,13 @@ void AC_AttitudeControl_Multi::rate_controller_run_dt(const Vector3f& gyro, floa
     _rate_gyro = gyro;
     _rate_gyro_time_us = AP_HAL::micros64();
 
-    _motors.set_roll(get_rate_roll_pid().update_all(ang_vel_body.x, gyro.x,  dt, _motors.limit.roll, _pd_scale.x) + _actuator_sysid.x);
+    _motors.set_roll(get_rate_roll_pid().update_all(ang_vel_body.x, gyro.x,  dt, _motors.limit.roll, _pd_scale.x, target_pitch_angle) + _actuator_sysid.x);
     _motors.set_roll_ff(get_rate_roll_pid().get_ff());
 
-    _motors.set_pitch(get_rate_pitch_pid().update_all(ang_vel_body.y, gyro.y,  dt, _motors.limit.pitch, _pd_scale.y) + _actuator_sysid.y);
+    _motors.set_pitch(get_rate_pitch_pid().update_all(ang_vel_body.y, gyro.y,  dt, _motors.limit.pitch, _pd_scale.y, target_pitch_angle) + _actuator_sysid.y);
     _motors.set_pitch_ff(get_rate_pitch_pid().get_ff());
 
-    _motors.set_yaw(get_rate_yaw_pid().update_all(ang_vel_body.z, gyro.z,  dt, _motors.limit.yaw, _pd_scale.z) + _actuator_sysid.z);
+    _motors.set_yaw(get_rate_yaw_pid().update_all(ang_vel_body.z, gyro.z,  dt, _motors.limit.yaw, _pd_scale.z, target_pitch_angle) + _actuator_sysid.z);
     _motors.set_yaw_ff(get_rate_yaw_pid().get_ff()*_feedforward_scalar);
 
     _pd_scale_used = _pd_scale;
@@ -478,10 +478,10 @@ void AC_AttitudeControl_Multi::rate_controller_target_reset()
 }
 
 // run the rate controller using the configured _dt and latest gyro
-void AC_AttitudeControl_Multi::rate_controller_run()
+void AC_AttitudeControl_Multi::rate_controller_run(int32_t target_pitch_angle)
 {
     Vector3f gyro_latest = _ahrs.get_gyro_latest();
-    rate_controller_run_dt(gyro_latest, _dt);
+    rate_controller_run_dt(gyro_latest, _dt, target_pitch_angle);
 }
 
 // sanity check parameters.  should be called once before takeoff

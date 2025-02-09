@@ -59,7 +59,7 @@ public:
     void input_angle_step_bf_roll_pitch_yaw(float roll_angle_step_bf_cd, float pitch_angle_step_bf_cd, float yaw_angle_step_bf_cd) override;
 
     // run lowest level body-frame rate controller and send outputs to the motors
-    void rate_controller_run() override;
+    void rate_controller_run(int32_t target_pitch_angle = 0) override;
 
     // limiting lean angle based on throttle makes no sense for 6DoF, always allow 90 deg, return in centi-degrees
     float get_althold_lean_angle_max_cd() const override { return 9000.0f; }

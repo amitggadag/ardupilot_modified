@@ -556,10 +556,14 @@ const AP_Param::GroupInfo QuadPlane::var_info2[] = {
 static const struct AP_Param::defaults_table_struct defaults_table[] = {
     { "Q_A_RAT_RLL_P",    0.25 },
     { "Q_A_RAT_RLL_I",    0.25 },
+    { "Q_A_RAT_RLL_P_FW",    0.25 },
+    { "Q_A_RAT_RLL_I_FW",    0.25 },
     { "Q_A_RAT_RLL_FLTD", 10.0 },
     { "Q_A_RAT_RLL_SMAX", 50.0 },
     { "Q_A_RAT_PIT_P",    0.25 },
     { "Q_A_RAT_PIT_I",    0.25 },
+    { "Q_A_RAT_PIT_P_FW",    0.25 },
+    { "Q_A_RAT_PIT_I_FW",    0.25 },
     { "Q_A_RAT_PIT_FLTD", 10.0 },
     { "Q_A_RAT_PIT_SMAX", 50.0 },
     { "Q_A_RAT_YAW_SMAX", 50.0 },
@@ -1943,7 +1947,7 @@ void QuadPlane::motors_output(bool run_rate_controller)
         motors->set_dt(last_loop_time_s);
         attitude_control->set_dt(last_loop_time_s);
         pos_control->set_dt(last_loop_time_s);
-        attitude_control->rate_controller_run();
+        attitude_control->rate_controller_run(plane.nav_pitch_cd);
         // reset sysid and other temporary inputs
         attitude_control->rate_controller_target_reset();
         last_att_control_ms = now;

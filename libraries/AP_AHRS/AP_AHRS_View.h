@@ -175,6 +175,8 @@ public:
     // Logging Functions
     void Write_AttitudeView(const Vector3f &targets) const;    
 
+    void Write_QuatView(const Quaternion &targets) const;
+
     float roll;
     float pitch;
     float yaw;

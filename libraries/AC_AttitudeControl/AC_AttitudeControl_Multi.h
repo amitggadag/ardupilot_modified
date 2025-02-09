@@ -76,9 +76,9 @@ public:
     bool is_throttle_mix_min() const override { return (_throttle_rpy_mix < 1.25f * _thr_mix_min); }
 
     // run lowest level body-frame rate controller and send outputs to the motors
-    void rate_controller_run_dt(const Vector3f& gyro, float dt) override;
+    void rate_controller_run_dt(const Vector3f& gyro, float dt, int32_t target_pitch_angle = 0) override;
     void rate_controller_target_reset() override;
-    void rate_controller_run() override;
+    void rate_controller_run(int32_t target_pitch_angle = 0) override;
 
     // sanity check parameters.  should be called once before take-off
     void parameter_sanity_check() override;
@@ -112,7 +112,10 @@ protected:
             .filt_E_hz = 0.0f,
             .filt_D_hz = AC_ATC_MULTI_RATE_RPY_FILT_HZ,
             .srmax     = 0,
-            .srtau     = 1.0
+            .srtau     = 1.0,
+            .p_fw         = AC_ATC_MULTI_RATE_RP_P,
+            .i_fw         = AC_ATC_MULTI_RATE_RP_I,
+            .d_fw         = AC_ATC_MULTI_RATE_RP_D
         }
     };
     AC_PID                _pid_rate_pitch{
@@ -126,7 +129,10 @@ protected:
             .filt_E_hz = 0.0f,
             .filt_D_hz = AC_ATC_MULTI_RATE_RPY_FILT_HZ,
             .srmax     = 0,
-            .srtau     = 1.0
+            .srtau     = 1.0,
+            .p_fw         = AC_ATC_MULTI_RATE_RP_P,
+            .i_fw         = AC_ATC_MULTI_RATE_RP_I,
+            .d_fw         = AC_ATC_MULTI_RATE_RP_D
         }
     };
 
@@ -141,7 +147,10 @@ protected:
             .filt_E_hz = AC_ATC_MULTI_RATE_YAW_FILT_HZ,
             .filt_D_hz = AC_ATC_MULTI_RATE_RPY_FILT_HZ,
             .srmax     = 0,
-            .srtau     = 1.0
+            .srtau     = 1.0,
+            .p_fw         = AC_ATC_MULTI_RATE_RP_P,
+            .i_fw         = AC_ATC_MULTI_RATE_RP_I,
+            .d_fw        = AC_ATC_MULTI_RATE_RP_D,
         }
     };
 

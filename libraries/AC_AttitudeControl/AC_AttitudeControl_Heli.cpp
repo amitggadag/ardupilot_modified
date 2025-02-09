@@ -415,7 +415,7 @@ void AC_AttitudeControl_Heli::input_rate_bf_roll_pitch_yaw(float roll_rate_bf_cd
 
 // rate_controller_run - run lowest level rate controller and send outputs to the motors
 // should be called at 100hz or more
-void AC_AttitudeControl_Heli::rate_controller_run()
+void AC_AttitudeControl_Heli::rate_controller_run(int32_t target_pitch_angle)
 {	
     _ang_vel_body += _sysid_ang_vel_body;
 

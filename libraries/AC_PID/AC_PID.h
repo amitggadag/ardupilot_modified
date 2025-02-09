@@ -35,11 +35,14 @@ public:
         float srmax;
         float srtau;
         float dff;
+        float p_fw;
+        float i_fw;
+        float d_fw;
     };
 
     // Constructor for PID
     AC_PID(float initial_p, float initial_i, float initial_d, float initial_ff, float initial_imax, float initial_filt_T_hz, float initial_filt_E_hz, float initial_filt_D_hz,
-           float initial_srmax=0, float initial_srtau=1.0, float initial_dff=0);
+           float initial_srmax=0, float initial_srtau=1.0, float initial_dff=0, float initial_p_fw=0.13, float initial_i_fw=0.0, float initial_d_fw=0.0);
     AC_PID(const AC_PID::Defaults &defaults) :
         AC_PID(
             defaults.p,
@@ -52,7 +55,10 @@ public:
             defaults.filt_D_hz,
             defaults.srmax,
             defaults.srtau,
-            defaults.dff
+            defaults.dff,
+            defaults.p,
+            defaults.i,
+            defaults.d
             )
         { }
 
@@ -62,7 +68,7 @@ public:
     //  target and error are filtered
     //  the derivative is then calculated and filtered
     //  the integral is then updated based on the setting of the limit flag
-    float update_all(float target, float measurement, float dt, bool limit = false, float boost = 1.0f);
+    float update_all(float target, float measurement, float dt, bool limit = false, float boost = 1.0f, int32_t pitch_angle_target = 0);
 
     //  update_error - set error input to PID controller and calculate outputs
     //  target is set to zero and error is set and filtered
@@ -77,6 +83,10 @@ public:
     float get_i() const;
     float get_d() const;
     float get_ff() const;
+
+    float update_p_gain(int32_t pitch_angle_target); // function for implementing gain scheduling. I will need pilot pitch input as an argument probably?
+    float update_d_gain(int32_t pitch_angle_target);
+    float update_i_gain(int32_t pitch_angle_target);
 
     // reset_I - reset the integrator
     void reset_I();
@@ -105,6 +115,9 @@ public:
     AP_Float &filt_D_hz() { return _filt_D_hz; }
     AP_Float &slew_limit() { return _slew_rate_max; }
     AP_Float &kDff() { return _kdff; }
+    AP_Float &kP_fw() { return _kp_fw; }
+    AP_Float &kI_fw() { return _ki_fw; }
+    AP_Float &kD_fw() { return _kd_fw; }
 
     float imax() const { return _kimax.get(); }
     float pdmax() const { return _kpdmax.get(); }
@@ -125,6 +138,9 @@ public:
     void set_filt_D_hz(const float v);
     void set_slew_limit(const float v);
     void set_kDff(const float v) { _kdff.set(v); }
+    void kP_fw(const float v) { _kp_fw.set(v); }
+    void kI_fw(const float v) { _ki_fw.set(v); }
+    void kD_fw(const float v) { _kd_fw.set(v); }
 
     // set the desired and actual rates (for logging purposes)
     void set_target_rate(float target) { _pid_info.target = target; }
@@ -165,6 +181,10 @@ protected:
     AP_Float _filt_D_hz;         // PID derivative filter frequency in Hz
     AP_Float _slew_rate_max;
     AP_Float _kdff;
+    AP_Float _kp_fw;
+    AP_Float _ki_fw;
+    AP_Float _kd_fw;
+
 #if AP_FILTER_ENABLED
     AP_Int8 _notch_T_filter;
     AP_Int8 _notch_E_filter;
@@ -209,4 +229,7 @@ private:
     const float default_filt_E_hz;
     const float default_filt_D_hz;
     const float default_slew_rate_max;
+    const float default_kp_fw;
+    const float default_ki_fw;
+    const float default_kd_fw;
 };
