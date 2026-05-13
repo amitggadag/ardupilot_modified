@@ -167,7 +167,7 @@ protected:
 
     //  update_i - update the integral
     //  if the limit flag is set the integral is only allowed to shrink
-    void update_i(float dt, bool limit);
+    void update_i(float dt, bool limit, int32_t pitch_angle_target = 0);
 
     // parameters
     AP_Float _kp;

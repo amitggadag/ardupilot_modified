@@ -264,7 +264,7 @@ float AC_PID::update_all(float target, float measurement, float dt, bool limit, 
     }
 
     // update I term
-    update_i(dt, limit);
+    update_i(dt, limit, pitch_angle_target);
 
     float P_out = (_error * update_p_gain(pitch_angle_target));
     float D_out = (_derivative * update_d_gain(pitch_angle_target));
@@ -331,12 +331,12 @@ float AC_PID::update_error(float error, float dt, bool limit)
 
 //  update_i - update the integral
 //  If the limit flag is set the integral is only allowed to shrink
-void AC_PID::update_i(float dt, bool limit)
+void AC_PID::update_i(float dt, bool limit, int32_t pitch_angle_target)
 {
     if (!is_zero(_ki) && is_positive(dt)) {
         // Ensure that integrator can only be reduced if the output is saturated
         if (!limit || ((is_positive(_integrator) && is_negative(_error)) || (is_negative(_integrator) && is_positive(_error)))) {
-            _integrator += ((float)_error * _ki) * dt;
+            _integrator += ((float)_error * update_i_gain(pitch_angle_target)) * dt;
             _integrator = constrain_float(_integrator, -_kimax, _kimax);
         }
     } else {
