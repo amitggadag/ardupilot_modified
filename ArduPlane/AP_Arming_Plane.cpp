@@ -178,7 +178,7 @@ bool AP_Arming_Plane::quadplane_checks(bool display_failure)
     }
 
     // lean angle parameter check
-    if (plane.quadplane.aparm.angle_max < 1000 || plane.quadplane.aparm.angle_max > 8000) {
+    if (plane.quadplane.aparm.angle_max < 1000 || plane.quadplane.aparm.angle_max > 10000) {
         check_failed(ARMING_CHECK_PARAMETERS, display_failure, "Check Q_ANGLE_MAX");
         ret = false;
     }
