@@ -1,0 +1,34 @@
+# ==============================================================================
+# ARDUPILOT CUSTOM COMPILATION OVERRIDES (extra.hwdef)
+# Purpose: Enable SparkFun MCP9600 via CubeOrangePlus GPS2 Port
+# ==============================================================================
+
+# ------------------ Core System Activation ------------------------------------
+define AP_TEMPERATURE_SENSOR_ENABLED 1
+
+# ------------------ Sensor Type Selection -------------------------------------
+define AP_TEMPERATURE_SENSOR_MCP9600_ENABLED 1
+
+# ------------------ Port Mapping (GPS2 Specific) -----------------------------
+# Default Address: SparkFun boards default to 0x60 hex, which equals 96 decimal.
+define AP_TEMPERATURE_SENSOR_I2C_ADDR_DEFAULT 96
+
+# Default Bus: GPS2 Port utilizes internal Bus 1 on the Cube platform.
+define AP_TEMPERATURE_SENSOR_I2C_BUS_DEFAULT 1
+
+
+# ==============================================================================
+# RE-USE INSTRUCTIONS (VSCode Terminal)
+# ==============================================================================
+# 1. Clean previous build artifacts:
+#    ./waf clean
+#
+# 2. Configure for CubeOrangePlus:
+#    ./waf configure --board=CubeOrangePlus --extra-hwdef=extra.hwdef
+#
+# 3. Compile ArduPlane:
+#    ./waf plane
+#
+# 4. Flash flight controller:
+#    ./waf plane --upload
+# ==============================================================================
